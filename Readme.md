@@ -1,7 +1,8 @@
 <h1 align="center">BP-MDS</h1>
 <p align="center">
   <b>Bucket-Partitioned MDS: CVRP Solver</b><br/>
-  Million-scale <b>Capacitated Vehicle Routing</b> — partition the plane, conquer in parallel.
+  Million-scale <b>Capacitated Vehicle Routing</b> — partition the plane, conquer in parallel.<br/>
+  <sub>Scoreboard: <b>BP-MDS</b> · <b>ours</b> · <b>NVIDIA cuOpt</b> — beat both on time and gap.</sub>
 </p>
 
 <p align="center">
@@ -16,13 +17,34 @@
 </p>
 
 <p align="center">
+  <a href="#goal--scoreboard">Scoreboard</a> ·
   <a href="#how-it-flows">Flow</a> ·
   <a href="#bks-routes-at-a-glance">Routes</a> ·
   <a href="#quick-start">Quick start</a> ·
   <a href="#platforms">Platforms</a> ·
   <a href="Inputs">310 instances</a> ·
-  <a href="Results">Results</a>
+  <a href="Results">Results</a> ·
+  <a href="benchmarks">Benchmarks</a>
 </p>
+
+---
+
+## Goal / scoreboard
+
+Optimize for **wall time** and **tighter gap to BKS** against both baselines. **One sheet** holds every instance (310) and all three solvers:
+
+| Contender | Role | Lane |
+|:----------|:-----|:-----|
+| **[BP-MDS](https://github.com/CodeCraftsmanSandeep/BP-MDS)** | Upstream CPU heuristic | CPU / OpenMP |
+| **ours** | This fork — faster hot path now; GPU path next | CPU → GPU |
+| **[NVIDIA cuOpt](https://www.nvidia.com/en-in/ai-data-science/products/cuopt/)** | GPU decision / routing engine | GPU |
+
+| | |
+|:--|:--|
+| **The sheet** | [Google Sheet](https://docs.google.com/spreadsheets/d/18Z0JchFiihrfq31Alr3_XLvNnxVLcktAKo5pzkanE6s/edit?usp=sharing) |
+| Repo paste mirror | [`benchmarks/scoreboard.tsv`](benchmarks/scoreboard.tsv) |
+
+Columns: **BKS · bpmds/ours/cuopt × (cost, gap%, time)**. Filter `source=CVRPLIB` when you want that suite only.
 
 ---
 
@@ -118,8 +140,12 @@ BP-MDS/
 │   ├── assets/                  # README figures (e.g. partitions)
 │   ├── BKSPlots/                # Route plots (combined / separated)
 │   ├── Output/                  # Solver .sol outputs
-│   ├── ExperimentalEvaluation/  # Experimental notes / extras
-│   └── README.md                # Per-instance costs & gaps
+│   └── README.md                # Per-instance costs & gaps (BKS)
+├── benchmarks/                  # single scoreboard (all instances)
+│   ├── scoreboard.tsv           # Sheets paste mirror
+│   ├── scoreboard.csv
+│   └── README.md
+├── report/                      # Speedups writeup (TeX / PDF / figs)
 ├── Scripts/
 │   ├── BenchmarkingCode/        # Ablation solvers (set / dfs / bfs / buckets)
 │   └── …                        # Plots & tooling
@@ -130,12 +156,25 @@ Ablation binaries: `make bench-marking` (sources in `Scripts/BenchmarkingCode/`)
 
 ---
 
+## Report & links
+
+| | |
+|:--|:--|
+| Scoreboard (one sheet) | [Google Sheet](https://docs.google.com/spreadsheets/d/18Z0JchFiihrfq31Alr3_XLvNnxVLcktAKo5pzkanE6s/edit?usp=sharing) · [`benchmarks/scoreboard.tsv`](benchmarks/scoreboard.tsv) |
+| Speedups report (TeX) | [`report/report.tex`](report/report.tex) |
+| Speedups report (PDF) | [`report/report.pdf`](report/report.pdf) |
+| Pull request | [PR #7 · CodeCraftsmanSandeep/BP-MDS](https://github.com/CodeCraftsmanSandeep/BP-MDS/pull/7) |
+| NVIDIA cuOpt | [Product page](https://www.nvidia.com/en-in/ai-data-science/products/cuopt/) |
+
+---
+
 ## Dive deeper
 
 | | |
 |:--|:--|
 | Instance index & BKS | [`Inputs/README.md`](Inputs/README.md) |
 | Per-instance results & gaps | [`Results/README.md`](Results/README.md) |
+| Scoreboard | [`benchmarks/scoreboard.tsv`](benchmarks/scoreboard.tsv) |
 | Route plot pipeline | [`Scripts/BKSPlotsGenerator/`](Scripts/BKSPlotsGenerator/) |
 | Sweep / scaling scripts | [`Scripts/`](Scripts/) |
 

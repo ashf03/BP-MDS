@@ -42,7 +42,7 @@
 \setlength{\parindent}{0pt}
 
 \title{\textbf{Runtime speedups for bucket-partitioned CVRP}\\[0.35em]
-\large Same routes, less wall time}
+\large Ours vs BP-MDS on the CPU lane (cuOpt next)}
 \author{Ash}
 \date{}
 
@@ -52,8 +52,9 @@
 \begin{abstract}
 \noindent
 BP-MDS solves capacitated vehicle routing by cutting the plane into angular sectors around the depot, building a minimum spanning tree in each sector, sampling randomized depth-first tours, and refining with 2-opt.
-This note keeps that combinatorial structure fixed and rewrites the hot path so the same algorithm finishes much faster on million-customer instances.
-On matched runs ($\alpha{=}2$, $\rho{=}10^{4}$, 48 threads), solve time drops by \textbf{76.6\%} at $10^{6}$ customers and \textbf{45.6\%} at $10^{7}$, while tour cost stays essentially flat.
+This note is the first scoreboard entry for our fork: keep that combinatorial structure fixed, rewrite the hot path, and measure wall time and tour cost against upstream BP-MDS.
+The wider goal is to beat both \textbf{BP-MDS} (CPU) and \textbf{NVIDIA cuOpt} (GPU) on time and gap-to-BKS; the GPU lane is future work.
+On matched CPU runs ($\alpha{=}2$, $\rho{=}10^{4}$, 48 threads), solve time drops by \textbf{76.6\%} at $10^{6}$ customers and \textbf{45.6\%} at $10^{7}$, while tour cost stays essentially flat.
 \end{abstract}
 
 \section{Pipeline}
@@ -181,5 +182,10 @@ The substantive edits live in \texttt{Lib/Bucket\_Partitioned\_MDS/Solver.cpp}, 
 The published heuristic shape is kept: partition, Euclidean MST, randomized DFS, 2-opt.
 What changes is the cost of those steps.
 At one and ten million customers, wall time falls by well over 20\% while solution cost stays flat; at roughly forty-seven million customers the same rewrites turn a multi-day unfinished baseline run into a finish on the order of a few hours.
+
+\paragraph{Scoreboard.}
+Rows go into a shared sheet with columns for solver (\texttt{bp-mds}, \texttt{ours-cpu}, \texttt{ours-gpu}, \texttt{cuopt}), cost, BKS gap, wall time, and hardware.
+CPU lane first (this note); GPU lane vs cuOpt next.
+Protocol: \texttt{benchmarks/} in the repo.
 
 \end{document}
