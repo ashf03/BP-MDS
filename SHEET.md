@@ -51,8 +51,9 @@ When given new results, fill the matching `instance` row:
 | `bpmds_cost` `bpmds_gap_pct` `bpmds_time_s` | Upstream BP-MDS |
 | `ours_cost` `ours_gap_pct` `ours_time_s` | This fork |
 | `cuopt_cost` `cuopt_gap_pct` `cuopt_time_s` | NVIDIA cuOpt |
-| `notes` | hardware, commits, cuOpt version, timed region |
+| `notes` | cite `log.md` run id, e.g. `run=R001 bpmds@… ours@… cuopt@… hw=… timed=…` |
 
+Pins, hardware, and timed region live in root **`log.md`** (append a run block every batch).  
 Then sync the Google Sheet (steps above).
 
 ## Rebuild TSV from repo catalogs

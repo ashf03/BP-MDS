@@ -160,7 +160,8 @@ Ablation binaries: `make bench-marking` (sources in `Scripts/BenchmarkingCode/`)
 
 | | |
 |:--|:--|
-| Scoreboard (one sheet) | [Google Sheet](https://docs.google.com/spreadsheets/d/18Z0JchFiihrfq31Alr3_XLvNnxVLcktAKo5pzkanE6s/edit?usp=sharing) · [`benchmarks/scoreboard.tsv`](benchmarks/scoreboard.tsv) |
+| Scoreboard (one sheet) | [Google Sheet](https://docs.google.com/spreadsheets/d/18Z0JchFiihrfq31Alr3_XLvNnxVLcktAKo5pzkanE6s/edit?usp=sharing) · [`scoreboard.tsv`](scoreboard.tsv) |
+| Experiment log (pins / runs) | [`log.md`](log.md) |
 | Speedups report (TeX) | [`report/report.tex`](report/report.tex) |
 | Speedups report (PDF) | [`report/report.pdf`](report/report.pdf) |
 | Pull request | [PR #7 · CodeCraftsmanSandeep/BP-MDS](https://github.com/CodeCraftsmanSandeep/BP-MDS/pull/7) |
