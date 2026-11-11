@@ -65,3 +65,6 @@ build/
 Inputs/CVRPLIB/
 Inputs/Synthetic/
 Inputs/FILO2/
+
+# Local working plan (never push)
+/plan.md

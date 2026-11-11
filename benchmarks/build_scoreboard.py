@@ -8,10 +8,13 @@ import re
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
+BENCH = Path(__file__).resolve().parent
 RESULTS = ROOT / "Results" / "README.md"
 INSTANCES = ROOT / "Inputs" / "instances.csv"
-OUT_CSV = Path(__file__).resolve().parent / "scoreboard.csv"
-OUT_TSV = Path(__file__).resolve().parent / "scoreboard.tsv"
+OUT_CSV = BENCH / "scoreboard.csv"
+OUT_TSV = BENCH / "scoreboard.tsv"
+ROOT_CSV = ROOT / "scoreboard.csv"
+ROOT_TSV = ROOT / "scoreboard.tsv"
 
 COLS = [
     "sno",
@@ -99,7 +102,13 @@ def main() -> None:
             )
 
     rows.sort(key=lambda x: int(x["sno"]))
-    for path, delim in ((OUT_CSV, ","), (OUT_TSV, "\t")):
+    targets = (
+        (OUT_CSV, ","),
+        (OUT_TSV, "\t"),
+        (ROOT_CSV, ","),
+        (ROOT_TSV, "\t"),
+    )
+    for path, delim in targets:
         with path.open("w", newline="") as f:
             w = csv.DictWriter(f, fieldnames=COLS, delimiter=delim)
             w.writeheader()
