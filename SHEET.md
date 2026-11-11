@@ -33,7 +33,7 @@ sno	size	source	set	instance	path	customers	n	q	bks	alpha_bpmds	bpmds_cost	bpmds
 2. `get_spreadsheet` on ID `18Z0JchFiihrfq31Alr3_XLvNnxVLcktAKo5pzkanE6s` — note the **single** tab title + sheetId.
 3. Read root `scoreboard.tsv` (tab-separated; first row = header; 310 data rows).
 4. Replace the tab contents with that table (header at A1). Prefer a full rewrite of the used range over appending duplicates.
-5. Keep **one tab**. Freeze header row. Optional: filter on `source` for CVRPLIB.
+5. Keep **one tab**. Freeze header row.
 6. After runs: edit `scoreboard.tsv` first (source of truth), then push to Sheets again the same way.
 
 ### Manual paste (no MCP)

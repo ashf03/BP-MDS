@@ -44,7 +44,7 @@ Optimize for **wall time** and **tighter gap to BKS** against both baselines. **
 | **The sheet** | [Google Sheet](https://docs.google.com/spreadsheets/d/18Z0JchFiihrfq31Alr3_XLvNnxVLcktAKo5pzkanE6s/edit?usp=sharing) |
 | Repo paste mirror | [`benchmarks/scoreboard.tsv`](benchmarks/scoreboard.tsv) |
 
-Columns: **BKS · bpmds/ours/cuopt × (cost, gap%, time)**. Filter `source=CVRPLIB` when you want that suite only.
+Columns: **BKS · bpmds/ours/cuopt × (cost, gap%, time)** — all sources on one sheet.
 
 ---
 

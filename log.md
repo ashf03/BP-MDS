@@ -34,14 +34,14 @@ Newest first. Add a block per batch.
 ### R000 — pins established (no new solves)
 
 - **date:** 2026-11-11
-- **what:** created this log; recorded current SHAs + local Mac hardware
+- **what:** created this log; recorded current SHAs + local Mac hardware; stamped all scoreboard `notes`
 - **bpmds:** `5b9e24f`
 - **ours:** `8f80169`
 - **cuopt:** —
 - **hardware:** Apple M5 / 10 CPU / 16 GB (dev only)
 - **timed:** `Solver::solve`
-- **suite:** —
-- **scoreboard:** no row updates
+- **suite:** all 310 rows (pin stamp only; no new solves)
+- **scoreboard:** `notes` filled on every row in root + `benchmarks/` scoreboard files
 - **notes paste:** `run=R000 bpmds@5b9e24f ours@8f80169 cuopt@na hw=M5-10c-16G timed=Solver::solve`
 
 <!--
