@@ -36,6 +36,19 @@ run=R00X bpmds@<sha> ours@<sha> cuopt@<tag|na> hw=<spec> timed=<region>
 
 Newest first. Add a block per batch.
 
+### R007 — Phase B α/ρ at topk=2 on 12 R006 gap losers — COMPLETE
+
+- **date:** 2026-11-14
+- **what:** close remaining large+BKS gap losers with α/ρ search at **topk=2** (no higher K)
+- **targets:** Friuli-Venezia-Giulia Sardegna Marche Campania Lazio Basilicata Molise Abruzzo Piemonte Emilia-Romagna Liguria Puglia
+- **workspace:** Modal **`aquin`** · ours `@a7a7533`
+- **batches:** `phase-b-batch1/2` (72+72) · Friuli follow-ups `phase-b4` + `phase-b5`
+- **apply rule:** gap ≤ bpmds **and** time ≤ bpmds (reject gap-only wins that blow the time budget)
+- **result (large+BKS n=25):** gap≤ **25/25** · time≤ **25/25** · both **25/25** · full large time still **127/127**
+- **Friuli close:** α=14.75 ρ=75000 topk=2 → gap 1.10635 ≤ bpmds 1.10651
+- **artifacts:** `R007_phaseb_batch{1,2}.jsonl` · `R007_phaseb4/5.jsonl` · `R007_phaseb_best.json`
+- **notes paste:** `run=R007 bpmds@5b9e24f ours@a7a7533 cuopt@na hw=Modal-48c-256G timed=Solver::solve phase=B topk=2`
+
 ### R006 — top-K tune (default K=2) + large re-bench — COMPLETE
 
 - **date:** 2026-11-14

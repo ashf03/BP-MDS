@@ -19,7 +19,7 @@ REPO = Path(__file__).resolve().parents[1]
 LARGE_SIZES = frozenset({"L", "XL", "XXL", "XXXL"})
 RUN_ID_OURS = "R006"
 RUN_ID_BPMDS = "R002"
-RUN_ID_PHASE_B = "R004"
+RUN_ID_PHASE_B = "R007"
 UPSTREAM_SHA = "5b9e24f"
 OURS_SHA = "a7a7533"
 DEFAULT_TOPK = 2  # R006: 127/127 time wins; K≥3 still loses time on hard rows
@@ -33,23 +33,26 @@ NOTES_BPMDS = (
 )
 NOTES_PHASE_B = (
     f"run={RUN_ID_PHASE_B} bpmds@{UPSTREAM_SHA} ours@{OURS_SHA} cuopt@na "
-    "hw=Modal-48c-256G timed=Solver::solve phase=B"
+    f"hw=Modal-48c-256G timed=Solver::solve phase=B topk={DEFAULT_TOPK}"
 )
 # keep old name for ours path compatibility
 RUN_ID = RUN_ID_OURS
 NOTES = NOTES_OURS
 
-# Remaining large+BKS gap losers after R003 (ρ=20k).
+# Remaining large+BKS gap losers after R006 (topk=2, ρ=10k).
 PHASE_B_LOSERS = (
     "Friuli-Venezia-Giulia",
-    "Campania",
-    "Marche",
     "Sardegna",
-    "Abruzzo",
+    "Marche",
+    "Campania",
     "Lazio",
-    "Ghent2",
-    "Toscana",
+    "Basilicata",
+    "Molise",
+    "Abruzzo",
+    "Piemonte",
     "Emilia-Romagna",
+    "Liguria",
+    "Puglia",
 )
 
 CPU_CORES = 48.0
@@ -603,6 +606,7 @@ def _phase_b_job_builder(
                 r.get("bks", ""),
                 RUN_ID_PHASE_B,
                 tag,
+                DEFAULT_TOPK,
             )
         )
 
@@ -623,14 +627,35 @@ def _phase_b_job_builder(
 
 
 def _phase_b_jobs(by_name: dict[str, dict]) -> list[tuple]:
+    # Tighter grid (aquin cancelled the 216-job map). Still topk=2 only.
     return _phase_b_job_builder(
         by_name,
         PHASE_B_LOSERS,
-        alpha_deltas=(-2.0, -1.0, -0.5, -0.25, 0.25, 0.5, 1.0, 2.0),
-        rhos_at_base=(15000, 25000, 30000, 40000),
-        cross_rho=30000,
-        cross_deltas=(-1.0, 1.0),
+        alpha_deltas=(-1.0, -0.5, -0.25, 0.25, 0.5, 1.0),
+        rhos_at_base=(20000, 30000, 40000, 60000),
+        cross_rho=40000,
+        cross_deltas=(-0.5, 0.5),
     )
+
+
+def _phase_b_batch_jobs(
+    by_name: dict[str, dict], batch: int
+) -> tuple[list[tuple], list[str]]:
+    """Split the 12 losers into two batches (1 or 2) to avoid map cancellations."""
+    mid = (len(PHASE_B_LOSERS) + 1) // 2
+    if batch == 1:
+        targets = PHASE_B_LOSERS[:mid]
+    else:
+        targets = PHASE_B_LOSERS[mid:]
+    jobs = _phase_b_job_builder(
+        by_name,
+        targets,
+        alpha_deltas=(-1.0, -0.5, -0.25, 0.25, 0.5, 1.0),
+        rhos_at_base=(20000, 30000, 40000, 60000),
+        cross_rho=40000,
+        cross_deltas=(-0.5, 0.5),
+    )
+    return jobs, list(targets)
 
 
 def _phase_b_grid_jobs(
@@ -660,6 +685,7 @@ def _phase_b_grid_jobs(
                 r.get("bks", ""),
                 RUN_ID_PHASE_B,
                 tag,
+                DEFAULT_TOPK,
             )
         )
 
@@ -705,7 +731,7 @@ def _phase_b3_jobs(by_name: dict[str, dict]) -> list[tuple]:
 
 
 def _phase_b4_jobs(by_name: dict[str, dict]) -> list[tuple]:
-    """Friuli-only: cross bucket-count regimes + very high ρ."""
+    """Friuli-only: cross bucket-count regimes + very high ρ (topk=2)."""
     # ceil(360/α): 26→[13.846,14.4), 25→[14.4,15.0), 24→[15.0,15.652)
     return _phase_b_grid_jobs(
         by_name,
@@ -714,17 +740,41 @@ def _phase_b4_jobs(by_name: dict[str, dict]) -> list[tuple]:
                 "alphas": (
                     13.9,
                     14.1,
-                    14.3,
+                    14.25,
                     14.4,
                     14.5,
+                    14.65,
                     14.75,
+                    14.85,
                     14.9,
                     15.0,
                     15.2,
                     15.4,
-                    15.6,
                 ),
-                "rhos": (60000, 80000, 100000, 120000),
+                "rhos": (40000, 60000, 80000, 100000),
+            },
+        },
+    )
+
+
+def _phase_b5_jobs(by_name: dict[str, dict]) -> list[tuple]:
+    """Friuli micro-grid: last ~1e-5 pp at topk=2."""
+    return _phase_b_grid_jobs(
+        by_name,
+        {
+            "Friuli-Venezia-Giulia": {
+                "alphas": (
+                    14.68,
+                    14.7,
+                    14.72,
+                    14.74,
+                    14.75,
+                    14.76,
+                    14.78,
+                    14.8,
+                    14.82,
+                ),
+                "rhos": (55000, 60000, 65000, 70000, 75000, 90000),
             },
         },
     )
@@ -907,12 +957,28 @@ def main(
         summary_path.write_text(json.dumps({"summary": summary, "targets": targets}, indent=2))
         print({"local_jsonl": str(out), "summary": summary, "summary_json": str(summary_path)})
         return
-    if cmd in ("phase-b", "phase-b2", "phase-b3", "phase-b4"):
+    if cmd in (
+        "phase-b",
+        "phase-b-batch1",
+        "phase-b-batch2",
+        "phase-b2",
+        "phase-b3",
+        "phase-b4",
+        "phase-b5",
+    ):
         if cmd == "phase-b":
             jobs = _phase_b_jobs(by_name)
             targets = list(PHASE_B_LOSERS)
             out_name = f"{RUN_ID_PHASE_B}_phaseb.jsonl"
             best_name = f"{RUN_ID_PHASE_B}_phaseb_best.json"
+        elif cmd == "phase-b-batch1":
+            jobs, targets = _phase_b_batch_jobs(by_name, 1)
+            out_name = f"{RUN_ID_PHASE_B}_phaseb_batch1.jsonl"
+            best_name = f"{RUN_ID_PHASE_B}_phaseb_batch1_best.json"
+        elif cmd == "phase-b-batch2":
+            jobs, targets = _phase_b_batch_jobs(by_name, 2)
+            out_name = f"{RUN_ID_PHASE_B}_phaseb_batch2.jsonl"
+            best_name = f"{RUN_ID_PHASE_B}_phaseb_batch2_best.json"
         elif cmd == "phase-b2":
             jobs = _phase_b2_jobs(by_name)
             targets = ["Friuli-Venezia-Giulia", "Marche"]
@@ -923,11 +989,16 @@ def main(
             targets = ["Friuli-Venezia-Giulia", "Marche"]
             out_name = f"{RUN_ID_PHASE_B}_phaseb3.jsonl"
             best_name = f"{RUN_ID_PHASE_B}_phaseb3_best.json"
-        else:
+        elif cmd == "phase-b4":
             jobs = _phase_b4_jobs(by_name)
             targets = ["Friuli-Venezia-Giulia"]
             out_name = f"{RUN_ID_PHASE_B}_phaseb4.jsonl"
             best_name = f"{RUN_ID_PHASE_B}_phaseb4_best.json"
+        else:
+            jobs = _phase_b5_jobs(by_name)
+            targets = ["Friuli-Venezia-Giulia"]
+            out_name = f"{RUN_ID_PHASE_B}_phaseb5.jsonl"
+            best_name = f"{RUN_ID_PHASE_B}_phaseb5_best.json"
         print({"phase_b_jobs": len(jobs), "cmd": cmd, "instances": targets})
         results = list(run_ours_one.starmap(jobs))
         ok = sum(1 for x in results if x.get("ok"))
@@ -1019,6 +1090,6 @@ def main(
         return
     raise SystemExit(
         "cmd: list-large | gpu-ready | ours-one | ours-large | topk-sweep | "
-        "phase-b | phase-b2 | phase-b3 | phase-b4 | harvest | "
-        "bpmds-one | bpmds-large | harvest-bpmds"
+        "phase-b | phase-b-batch1 | phase-b-batch2 | phase-b2 | phase-b3 | "
+        "phase-b4 | phase-b5 | harvest | bpmds-one | bpmds-large | harvest-bpmds"
     )
