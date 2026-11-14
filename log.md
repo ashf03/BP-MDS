@@ -36,6 +36,24 @@ run=R00X bpmds@<sha> ours@<sha> cuopt@<tag|na> hw=<spec> timed=<region>
 
 Newest first. Add a block per batch.
 
+### R005 — Modal ours large suite with top-K=12 Solver — COMPLETE
+
+- **date:** 2026-11-14
+- **what:** full large 127 re-bench of ours @ `653111b` (top-K post-LS) · matched α=`alpha_bpmds` · ρ=10000
+- **workspace:** Modal **`aquin`** (new volume `bp-mds-data`)
+- **bpmds:** `5b9e24f` (R002 baselines unchanged)
+- **ours:** `653111b` (top-K=12)
+- **hardware:** Modal 48c / 256 GiB · `OMP_NUM_THREADS=48`
+- **timed:** `Execution time for solving (sec)` from `.sol`
+- **suite:** large **127/127 ok** · Modal `ap-pVjiNIXR7Fwx7zFr19V1Y8`
+- **vs BP-MDS (matched ρ=10k):** time≤ **92/127** (median ~1.43×; top-K polish costs time vs R001’s 127/127) · large+BKS gap≤ **19/25** · both **17/25**
+- **gap losers (6):** Sardegna Friuli-Venezia-Giulia Lazio Molise Basilicata Piemonte
+- **note:** R004 Phase B (tuned α/ρ) had 25/25 both-win; R005 is the fair matched-protocol re-bench of the new Solver
+- **artifacts:** `modal_exp/results/R005_ours.jsonl` · `R005_ours_patch.csv`
+- **cmd:** `modal run modal_exp/app.py --cmd ours-large --rho 10000`
+- **notes paste:** `run=R005 bpmds@5b9e24f ours@653111b cuopt@na hw=Modal-48c-256G timed=Solver::solve rho=10000 topk=12`
+- **PR:** updates [PR #7](https://github.com/CodeCraftsmanSandeep/BP-MDS/pull/7) on `mod/cleanup-and-speedups`
+
 ### R004 — Phase B close remaining gap losers — COMPLETE
 
 - **date:** 2026-11-14

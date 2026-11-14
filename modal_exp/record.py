@@ -9,8 +9,8 @@ from pathlib import Path
 
 REPO = Path(__file__).resolve().parents[1]
 NOTES_OURS = (
-    "run=R001 bpmds@5b9e24f ours@1190a34 cuopt@na "
-    "hw=Modal-48c-256G timed=Solver::solve rho=10000"
+    "run=R005 bpmds@5b9e24f ours@653111b cuopt@na "
+    "hw=Modal-48c-256G timed=Solver::solve rho=10000 topk=12"
 )
 NOTES_BPMDS = (
     "run=R002 bpmds@5b9e24f ours@1190a34 cuopt@na "
