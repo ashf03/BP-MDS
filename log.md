@@ -46,7 +46,8 @@ Newest first. Add a block per batch.
 - **R006 full large @ K=2:** **127/127** time≤ bpmds (median ~2.05×) · large+BKS gap≤ **13/25** · both **13/25**
 - **vs R005 (K=12):** much faster (109/127 quicker) but gap 13/25 vs 19/25 — K=12 gap needs time we cannot spend at matched ρ=10k
 - **artifacts:** `R006_ours.jsonl` · `R006_topk_sweep.jsonl` · Modal `ap-2qiv1MZrgj5vPnvBJlrVcM`
-- **notes paste:** `run=R006 bpmds@5b9e24f ours@653111b cuopt@na hw=Modal-48c-256G timed=Solver::solve rho=10000 topk=2`
+- **ours:** `a7a7533` (topk=2 + tight DFS prune)
+- **notes paste:** `run=R006 bpmds@5b9e24f ours@a7a7533 cuopt@na hw=Modal-48c-256G timed=Solver::solve rho=10000 topk=2`
 
 ### R005 — Modal ours large suite with top-K=12 Solver — COMPLETE
 
