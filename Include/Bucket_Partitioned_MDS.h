@@ -77,6 +77,8 @@ namespace Bucket_Partitioned_MDS
         const double alpha;
         const int rho;
         const int topk;
+        // 0 = 2-opt only; 1 = + Or-opt/relocate; 2 = + limited 3-opt
+        const int ls;
 
         void get_bucket(
             const CVRP&,
@@ -109,6 +111,22 @@ namespace Bucket_Partitioned_MDS
             std::vector <node_t>&,
             int) const;
 
+        void tsp_or_opt(
+            const CVRP&,
+            std::vector <node_t>&) const;
+
+        void tsp_3opt(
+            const CVRP&,
+            std::vector <node_t>&) const;
+
+        void polish_route(
+            const CVRP&,
+            std::vector <node_t>&) const;
+
+        void inter_route_relocate(
+            const CVRP&,
+            std::vector <std::vector <node_t>>&) const;
+
         std::vector<std::vector<node_t>> process_2OPT(
             const CVRP&,
             const std::vector<std::vector<node_t>>&) const;
@@ -131,7 +149,8 @@ namespace Bucket_Partitioned_MDS
         Solver(
             const double,
             const int,
-            const int topk_ = 2);
+            const int topk_ = 2,
+            const int ls_ = 0);
 
         Solution solve(
             const CVRP&) const;

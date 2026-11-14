@@ -1,0 +1,61 @@
+{
+  "summary": [
+    {
+      "topk": 1,
+      "ok": 31,
+      "time_wins": "31/31",
+      "gap_wins": "2/20"
+    },
+    {
+      "topk": 2,
+      "ok": 31,
+      "time_wins": "31/31",
+      "gap_wins": "8/20"
+    },
+    {
+      "topk": 3,
+      "ok": 31,
+      "time_wins": "30/31",
+      "gap_wins": "10/20"
+    },
+    {
+      "topk": 4,
+      "ok": 31,
+      "time_wins": "27/31",
+      "gap_wins": "10/20"
+    }
+  ],
+  "targets": [
+    "XML100000_2113_01",
+    "XML100000_3123_01",
+    "XML80000_2126_01",
+    "XML100000_2163_01",
+    "XML80000_3126_01",
+    "XML200000_3126_01",
+    "XML100000_2126_01",
+    "XML100000_2121_01",
+    "XML100000_2125_01",
+    "XML100000_2133_01",
+    "XML100000_2123_01",
+    "Molise",
+    "Flanders1",
+    "Basilicata",
+    "Umbria",
+    "Piemonte",
+    "Sardegna",
+    "Friuli-Venezia-Giulia",
+    "Lazio",
+    "Ghent2",
+    "Flanders2",
+    "Brussels2",
+    "Campania",
+    "Liguria",
+    "Puglia",
+    "Lombardia",
+    "Toscana",
+    "Emilia-Romagna",
+    "Abruzzo",
+    "Veneto",
+    "Marche"
+  ]
+}

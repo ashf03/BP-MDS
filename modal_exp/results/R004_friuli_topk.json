@@ -1,0 +1,11 @@
+{
+  "instance": "Friuli-Venezia-Giulia",
+  "alpha": 14.75,
+  "rho": 60000,
+  "topk": 12,
+  "ours_cost": 420400129.8961,
+  "ours_gap_pct": 1.1049667727672021,
+  "ours_time_s": 62.6369,
+  "bpmds_gap_pct": 1.106511,
+  "gap_win": true
+}

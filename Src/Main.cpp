@@ -11,7 +11,8 @@ int main(int argc, char* argv[])
 
     std::cerr << "[bpmds] loading instance (alpha=" << args.get_alpha()
               << ", rho=" << args.get_rho()
-              << ", topk=" << args.get_topk() << ")...\n" << std::flush;
+              << ", topk=" << args.get_topk()
+              << ", ls=" << args.get_ls() << ")...\n" << std::flush;
 
     auto t0 = std::chrono::high_resolution_clock::now();
     const Bucket_Partitioned_MDS::CVRP cvrp(args.input());
@@ -23,7 +24,7 @@ int main(int argc, char* argv[])
               << std::flush;
 
     const Bucket_Partitioned_MDS::Solver solver(
-        args.get_alpha(), args.get_rho(), args.get_topk());
+        args.get_alpha(), args.get_rho(), args.get_topk(), args.get_ls());
 
     std::cerr << "[bpmds] solving...\n" << std::flush;
     Bucket_Partitioned_MDS::Solution cvrp_solution = solver.solve(cvrp);

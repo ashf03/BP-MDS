@@ -7,9 +7,14 @@
 #include <limits>
 #include <cstdint>
 #include <atomic>
+#include <cstdlib>
 #include <iostream>
 #include <iomanip>
 #include <omp.h>
+
+#ifdef BPMDS_USE_CUDA
+#include "Cuda_Hotpath.h"
+#endif
 
 namespace Bucket_Partitioned_MDS
 {
@@ -88,12 +93,37 @@ namespace Bucket_Partitioned_MDS
         }
     }
 
+    namespace {
+        int env_int(const char* key, int fallback)
+        {
+            const char* v = std::getenv(key);
+            if (!v || !*v) {
+                return fallback;
+            }
+            return std::atoi(v);
+        }
+
+        bool cuda_enabled()
+        {
+#ifdef BPMDS_USE_CUDA
+            const char* v = std::getenv("BPMDS_CUDA");
+            if (v && (v[0] == '0') && v[1] == '\0') {
+                return false;
+            }
+            return bpmds_cuda_available() != 0;
+#else
+            return false;
+#endif
+        }
+    } // namespace
+
     void Solver::construct_mst(
         const CVRP&                         cvrp,
         const std::vector <node_t>&         bucket,
         std::vector <std::vector <node_t>>& adj) const
     {
         // Dense Prim on squared lengths (sqrt is monotone; ties use smallest index).
+        // Memory is O(bucket) — never a full-instance N×N matrix.
         const int n = static_cast<int>(bucket.size());
         adj.assign(n, {});
         if (n <= 1)
@@ -107,6 +137,39 @@ namespace Bucket_Partitioned_MDS
             xs[i] = cvrp[bucket[i]].x;
             ys[i] = cvrp[bucket[i]].y;
         }
+
+#ifdef BPMDS_USE_CUDA
+        const int prim_min = env_int("BPMDS_CUDA_PRIM_MIN", 512);
+        if (cuda_enabled() && n >= prim_min)
+        {
+            std::vector<int> parent(n, -1);
+            if (bpmds_cuda_prim_mst(xs.data(), ys.data(), n, parent.data()) == 0)
+            {
+                bool ok = true;
+                for (int i = 1; i < n; ++i)
+                {
+                    const int p = parent[i];
+                    if (p < 0 || p >= n)
+                    {
+                        ok = false;
+                        break;
+                    }
+                    adj[p].push_back(i);
+                    adj[i].push_back(p);
+                }
+                int edges = 0;
+                for (int i = 0; i < n; ++i)
+                {
+                    edges += static_cast<int>(adj[i].size());
+                }
+                if (ok && edges == 2 * (n - 1))
+                {
+                    return;
+                }
+                adj.assign(n, {});
+            }
+        }
+#endif
 
         constexpr double kInf = std::numeric_limits<double>::infinity();
         std::vector<double> best(n, kInf);
@@ -258,6 +321,27 @@ namespace Bucket_Partitioned_MDS
     {
         // O(1) edge-length delta; kMaxPasses caps rare FP oscillation.
         const node_t depot = cvrp.depot();
+
+#ifdef BPMDS_USE_CUDA
+        const int opt_min = env_int("BPMDS_CUDA_2OPT_MIN", 128);
+        if (cuda_enabled() && ncities >= opt_min)
+        {
+            const int N = cvrp.size();
+            std::vector<double> cx(N), cy(N);
+            for (int i = 0; i < N; ++i)
+            {
+                cx[i] = cvrp[i].x;
+                cy[i] = cvrp[i].y;
+            }
+            if (bpmds_cuda_tsp_2opt(
+                    cities.data(), ncities, cx.data(), cy.data(), N, depot)
+                == 0)
+            {
+                return;
+            }
+        }
+#endif
+
         int improve = 0;
         int passes = 0;
         constexpr int kMaxPasses = 32;
@@ -289,6 +373,318 @@ namespace Bucket_Partitioned_MDS
         }
     }
 
+    void Solver::tsp_or_opt(
+        const CVRP& cvrp,
+        std::vector<node_t>& cities) const
+    {
+        // Or-opt: move a consecutive segment of length L∈{1,2,3} (L=1 ≡ relocate).
+        const int n = static_cast<int>(cities.size());
+        if (n < 2)
+        {
+            return;
+        }
+        const node_t depot = cvrp.depot();
+        auto pred = [&](int idx) -> node_t {
+            return idx <= 0 ? depot : cities[idx - 1];
+        };
+
+        int passes = 0;
+        constexpr int kMaxPasses = 16;
+        bool improved = true;
+        while (improved && passes < kMaxPasses)
+        {
+            improved = false;
+            ++passes;
+            const int nn = static_cast<int>(cities.size());
+            for (int L = 1; L <= 3 && L < nn; ++L)
+            {
+                for (int i = 0; i + L <= nn; ++i)
+                {
+                    const node_t left = pred(i);
+                    const node_t right = (i + L < nn) ? cities[i + L] : depot;
+                    const node_t seg_first = cities[i];
+                    const node_t seg_last = cities[i + L - 1];
+                    const double remove_delta =
+                        cvrp.distance_fast(left, right)
+                        - cvrp.distance_fast(left, seg_first)
+                        - cvrp.distance_fast(seg_last, right);
+
+                    for (int p = 0; p <= nn - L; ++p)
+                    {
+                        // p = insert index in the route after removal.
+                        if (p == i || p == i + 1)
+                        {
+                            continue;
+                        }
+                        int orig_before;
+                        int orig_after;
+                        if (p <= i)
+                        {
+                            orig_before = p - 1;
+                            orig_after = p;
+                        }
+                        else
+                        {
+                            orig_before = p + L - 1;
+                            orig_after = p + L;
+                        }
+                        const node_t ins_left =
+                            (orig_before < 0) ? depot : cities[orig_before];
+                        const node_t ins_right =
+                            (orig_after >= nn) ? depot : cities[orig_after];
+
+                        const double insert_delta =
+                            cvrp.distance_fast(ins_left, seg_first)
+                            + cvrp.distance_fast(seg_last, ins_right)
+                            - cvrp.distance_fast(ins_left, ins_right);
+                        if (remove_delta + insert_delta < -1e-12)
+                        {
+                            std::vector<node_t> seg(
+                                cities.begin() + i, cities.begin() + i + L);
+                            cities.erase(
+                                cities.begin() + i, cities.begin() + i + L);
+                            cities.insert(
+                                cities.begin() + p, seg.begin(), seg.end());
+                            improved = true;
+                            break;
+                        }
+                    }
+                    if (improved)
+                    {
+                        break;
+                    }
+                }
+                if (improved)
+                {
+                    break;
+                }
+            }
+        }
+    }
+
+    void Solver::tsp_3opt(
+        const CVRP& cvrp,
+        std::vector<node_t>& cities) const
+    {
+        // Limited 3-opt: reorder two interior segments (with optional reverses).
+        // Caps route size so O(n^3)-ish search stays practical.
+        const int n = static_cast<int>(cities.size());
+        if (n < 4)
+        {
+            return;
+        }
+        constexpr int kMaxN = 64;
+        if (n > kMaxN)
+        {
+            return;
+        }
+
+        auto cost_of = [&](const std::vector<node_t>& r) {
+            return get_route_distance(cvrp, r);
+        };
+
+        int passes = 0;
+        constexpr int kMaxPasses = 8;
+        bool improved = true;
+        while (improved && passes < kMaxPasses)
+        {
+            improved = false;
+            ++passes;
+            double best_cost = cost_of(cities);
+            std::vector<node_t> best = cities;
+
+            for (int i = 1; i < n - 2; ++i)
+            {
+                for (int j = i + 1; j < n - 1; ++j)
+                {
+                    for (int k = j + 1; k < n; ++k)
+                    {
+                        // Segments: [0,i) | [i,j) | [j,k) | [k,n)
+                        auto build = [&](bool rev1, bool rev2, bool swap) {
+                            std::vector<node_t> out;
+                            out.reserve(n);
+                            out.insert(
+                                out.end(), cities.begin(), cities.begin() + i);
+                            std::vector<node_t> s1(
+                                cities.begin() + i, cities.begin() + j);
+                            std::vector<node_t> s2(
+                                cities.begin() + j, cities.begin() + k);
+                            if (rev1)
+                            {
+                                std::reverse(s1.begin(), s1.end());
+                            }
+                            if (rev2)
+                            {
+                                std::reverse(s2.begin(), s2.end());
+                            }
+                            if (!swap)
+                            {
+                                out.insert(out.end(), s1.begin(), s1.end());
+                                out.insert(out.end(), s2.begin(), s2.end());
+                            }
+                            else
+                            {
+                                out.insert(out.end(), s2.begin(), s2.end());
+                                out.insert(out.end(), s1.begin(), s1.end());
+                            }
+                            out.insert(
+                                out.end(), cities.begin() + k, cities.end());
+                            return out;
+                        };
+
+                        // Skip pure identity; 2-opt-only reverses are cheap to
+                        // re-check; swap variants are the new 3-opt value.
+                        for (int mask = 0; mask < 8; ++mask)
+                        {
+                            const bool rev1 = mask & 1;
+                            const bool rev2 = mask & 2;
+                            const bool swap = mask & 4;
+                            if (!swap && !rev1 && !rev2)
+                            {
+                                continue;
+                            }
+                            auto cand = build(rev1, rev2, swap);
+                            const double c = cost_of(cand);
+                            if (c + 1e-12 < best_cost)
+                            {
+                                best_cost = c;
+                                best = std::move(cand);
+                                improved = true;
+                            }
+                        }
+                    }
+                }
+            }
+            if (improved)
+            {
+                cities = std::move(best);
+            }
+        }
+    }
+
+    void Solver::polish_route(
+        const CVRP& cvrp,
+        std::vector<node_t>& cities) const
+    {
+        const int sz = static_cast<int>(cities.size());
+        if (sz <= 2)
+        {
+            return;
+        }
+        std::vector<node_t> tour(sz);
+        tsp_2OPT(cvrp, cities, tour, sz);
+        if (this->ls >= 1)
+        {
+            tsp_or_opt(cvrp, cities);
+        }
+        if (this->ls >= 2)
+        {
+            tsp_3opt(cvrp, cities);
+            // Re-tighten after 3-opt.
+            tsp_or_opt(cvrp, cities);
+            tsp_2OPT(cvrp, cities, tour, static_cast<int>(cities.size()));
+        }
+    }
+
+    void Solver::inter_route_relocate(
+        const CVRP& cvrp,
+        std::vector<std::vector<node_t>>& routes) const
+    {
+        if (this->ls < 1 || routes.size() < 2)
+        {
+            return;
+        }
+        const node_t depot = cvrp.depot();
+        const capacity_t Q = cvrp.capacity();
+
+        auto route_load = [&](const std::vector<node_t>& r) {
+            capacity_t load = 0;
+            for (node_t u : r)
+            {
+                load += cvrp[u].demand;
+            }
+            return load;
+        };
+
+        int passes = 0;
+        constexpr int kMaxPasses = 8;
+        bool improved = true;
+        while (improved && passes < kMaxPasses)
+        {
+            improved = false;
+            ++passes;
+            for (size_t r1 = 0; r1 < routes.size(); ++r1)
+            {
+                if (routes[r1].empty())
+                {
+                    continue;
+                }
+                for (size_t i = 0; i < routes[r1].size(); ++i)
+                {
+                    const node_t u = routes[r1][i];
+                    const capacity_t dem = cvrp[u].demand;
+                    const node_t left =
+                        (i == 0) ? depot : routes[r1][i - 1];
+                    const node_t right = (i + 1 == routes[r1].size())
+                        ? depot
+                        : routes[r1][i + 1];
+                    const double remove_delta =
+                        cvrp.distance_fast(left, right)
+                        - cvrp.distance_fast(left, u)
+                        - cvrp.distance_fast(u, right);
+
+                    for (size_t r2 = 0; r2 < routes.size(); ++r2)
+                    {
+                        if (r2 == r1)
+                        {
+                            continue;
+                        }
+                        if (route_load(routes[r2]) + dem > Q + 1e-9)
+                        {
+                            continue;
+                        }
+                        for (size_t p = 0; p <= routes[r2].size(); ++p)
+                        {
+                            const node_t ins_left =
+                                (p == 0) ? depot : routes[r2][p - 1];
+                            const node_t ins_right =
+                                (p == routes[r2].size()) ? depot
+                                                         : routes[r2][p];
+                            const double insert_delta =
+                                cvrp.distance_fast(ins_left, u)
+                                + cvrp.distance_fast(u, ins_right)
+                                - cvrp.distance_fast(ins_left, ins_right);
+                            if (remove_delta + insert_delta < -1e-12)
+                            {
+                                routes[r1].erase(routes[r1].begin() + static_cast<long>(i));
+                                routes[r2].insert(
+                                    routes[r2].begin() + static_cast<long>(p), u);
+                                if (routes[r1].empty())
+                                {
+                                    routes.erase(routes.begin() + static_cast<long>(r1));
+                                }
+                                improved = true;
+                                break;
+                            }
+                        }
+                        if (improved)
+                        {
+                            break;
+                        }
+                    }
+                    if (improved)
+                    {
+                        break;
+                    }
+                }
+                if (improved)
+                {
+                    break;
+                }
+            }
+        }
+    }
+
     std::vector<std::vector<node_t>> Solver::process_2OPT(
         const CVRP&                             cvrp, 
         const std::vector<std::vector<node_t>>& routes) const
@@ -299,15 +695,8 @@ namespace Bucket_Partitioned_MDS
 
         for (int i = 0; i < nroutes; ++i) 
         {
-            int sz = routes[i].size();
             std::vector<node_t> cities = routes[i];
-            std::vector<node_t> tour(sz);
-
-            if (sz > 2)
-            {
-                tsp_2OPT(cvrp, cities, tour, sz);
-            }                         
-            
+            polish_route(cvrp, cities);
             processed_routes.push_back(std::move(cities));
         }
 
@@ -343,6 +732,21 @@ namespace Bucket_Partitioned_MDS
             {
                 routes[i]       = std::move(processed_routes1[i]);
                 min_cost        += route_cost1;   
+            }
+        }
+
+        if (this->ls >= 1)
+        {
+            inter_route_relocate(cvrp, routes);
+            // Re-polish routes that may have changed.
+            for (auto& r : routes)
+            {
+                polish_route(cvrp, r);
+            }
+            min_cost = 0;
+            for (const auto& r : routes)
+            {
+                min_cost += get_route_distance(cvrp, r);
             }
         }
 
@@ -471,8 +875,9 @@ namespace Bucket_Partitioned_MDS
     Solver::Solver(
         const double _alpha, 
         const int _rho,
-        const int _topk) 
-        : alpha(_alpha), rho(_rho), topk(_topk) 
+        const int _topk,
+        const int _ls) 
+        : alpha(_alpha), rho(_rho), topk(_topk), ls(_ls) 
     {
     }
 
@@ -513,6 +918,12 @@ namespace Bucket_Partitioned_MDS
                   << " threads=" << omp_get_max_threads()
                   << " rho=" << rho
                   << " topk=" << topk
+                  << " ls=" << ls
+#ifdef BPMDS_USE_CUDA
+                  << " cuda=" << (cuda_enabled() ? 1 : 0)
+                  << " cuda_prim_min=" << env_int("BPMDS_CUDA_PRIM_MIN", 512)
+                  << " cuda_2opt_min=" << env_int("BPMDS_CUDA_2OPT_MIN", 128)
+#endif
                   << "\n" << std::flush;
 
         const uint32_t seed_base = 0x9e3779b9u;

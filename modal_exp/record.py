@@ -16,6 +16,21 @@ NOTES_BPMDS = (
     "run=R002 bpmds@5b9e24f ours@1190a34 cuopt@na "
     "hw=Modal-48c-256G timed=Solver::solve rho=10000"
 )
+NOTES_CUOPT = (
+    "run=R008 bpmds@5b9e24f ours@a7a7533 cuopt@26.10.01 "
+    "hw=Modal-H100 timed=routing.Solve time_limit=30s max_n=25000"
+)
+NOTES_OURS_GPU = (
+    "run=R009 bpmds@5b9e24f ours@a7a7533 cuopt@26.10.01 "
+    "hw=Modal-H100 timed=Solver::solve lane=ours-gpu "
+    "algo=bucketed-euclidean omp=48 topk=2"
+)
+NOTES_OURS_CUDA = (
+    "run=R010 bpmds@5b9e24f ours@a7a7533 cuopt@26.10.01 "
+    "hw=Modal-H100 timed=Solver::solve lane=ours-gpu-cuda "
+    "algo=bucketed-euclidean+cuda-prim-2opt omp=48 "
+    "prim_min=512 twopt_min=128 topk=2"
+)
 NOTES = NOTES_OURS  # default for ours apply
 
 COST_RE = re.compile(r"^Cost:\s*([0-9.eE+-]+)\s*$", re.I | re.M)
@@ -120,6 +135,106 @@ def apply_bpmds_results(results: list[dict]) -> int:
         else:
             row["notes"] = NOTES_BPMDS
         updated += 1
+    for path in SCOREBOARD_PATHS:
+        _write_pair(path, fieldnames, rows)
+    return updated
+
+
+def apply_ours_gpu_results(results: list[dict]) -> int:
+    """Fill ours_gpu_* from R009 H100 bucketed runs (does not touch ours_* CPU)."""
+    by_inst = {r["instance"]: r for r in results if r.get("instance")}
+    fieldnames, rows = _load_rows()
+    for col in ("ours_gpu_cost", "ours_gpu_gap_pct", "ours_gpu_time_s"):
+        if col not in fieldnames:
+            # insert before notes
+            if "notes" in fieldnames:
+                i = fieldnames.index("notes")
+                fieldnames[i:i] = [
+                    "ours_gpu_cost",
+                    "ours_gpu_gap_pct",
+                    "ours_gpu_time_s",
+                ]
+            else:
+                fieldnames.extend(
+                    ["ours_gpu_cost", "ours_gpu_gap_pct", "ours_gpu_time_s"]
+                )
+            break
+    updated = 0
+    for row in rows:
+        hit = by_inst.get(row["instance"])
+        if not hit or not hit.get("ok", True):
+            # still allow finite cost rows marked ok=False
+            if not hit:
+                continue
+        cost = hit.get("ours_gpu_cost", hit.get("cost"))
+        time_s = hit.get("ours_gpu_time_s", hit.get("time_s"))
+        if cost is None or cost == "":
+            if not hit.get("ok"):
+                continue
+        if cost is not None and cost != "":
+            row["ours_gpu_cost"] = f"{float(cost):.6f}"
+            row["ours_gpu_gap_pct"] = gap_pct(float(cost), row.get("bks", ""))
+        if time_s is not None and time_s != "":
+            row["ours_gpu_time_s"] = f"{float(time_s):.6f}"
+        prev = row.get("notes") or ""
+        note = (
+            NOTES_OURS_CUDA
+            if hit.get("use_cuda") or "run=R010" in (hit.get("notes") or "")
+            else NOTES_OURS_GPU
+        )
+        rid = note.split()[0]  # e.g. run=R010
+        if rid not in prev:
+            row["notes"] = (prev + " | " + note).strip(" |")
+        updated += 1
+    for path in SCOREBOARD_PATHS:
+        _write_pair(path, fieldnames, rows)
+    return updated
+
+
+def apply_cuopt_results(results: list[dict], *, mark_skipped: bool = True) -> int:
+    """Fill cuopt_* from R008 Modal H100 runs. Optionally stamp oversized rows."""
+    by_inst = {r["instance"]: r for r in results if r.get("instance")}
+    fieldnames, rows = _load_rows()
+    updated = 0
+    for row in rows:
+        hit = by_inst.get(row["instance"])
+        if hit:
+            if hit.get("skipped"):
+                row["cuopt_cost"] = ""
+                row["cuopt_gap_pct"] = ""
+                row["cuopt_time_s"] = ""
+                prev = row.get("notes") or ""
+                tag = "cuopt=skip:n>25000"
+                if tag not in prev:
+                    row["notes"] = (prev + " | " + tag).strip(" |")
+                updated += 1
+                continue
+            cost = hit.get("cuopt_cost", hit.get("cost"))
+            time_s = hit.get("cuopt_time_s", hit.get("time_s"))
+            if cost is not None and cost != "":
+                row["cuopt_cost"] = f"{float(cost):.6f}"
+                row["cuopt_gap_pct"] = gap_pct(float(cost), row.get("bks", ""))
+            if time_s is not None and time_s != "":
+                row["cuopt_time_s"] = f"{float(time_s):.6f}"
+            prev = row.get("notes") or ""
+            if "run=R008" not in prev:
+                row["notes"] = (prev + " | " + NOTES_CUOPT).strip(" |")
+            else:
+                row["notes"] = NOTES_CUOPT
+            updated += 1
+            continue
+        if mark_skipped:
+            try:
+                n = int(float(row.get("n") or 0))
+            except (TypeError, ValueError):
+                n = 0
+            size = (row.get("size") or "").upper()
+            if size in {"L", "XL", "XXL", "XXXL"} and n > 25000:
+                prev = row.get("notes") or ""
+                tag = "cuopt=skip:n>25000"
+                if tag not in prev:
+                    row["notes"] = (prev + " | " + tag).strip(" |")
+                    updated += 1
     for path in SCOREBOARD_PATHS:
         _write_pair(path, fieldnames, rows)
     return updated

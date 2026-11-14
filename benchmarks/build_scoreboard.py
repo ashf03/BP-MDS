@@ -37,6 +37,9 @@ COLS = [
     "cuopt_cost",
     "cuopt_gap_pct",
     "cuopt_time_s",
+    "ours_gpu_cost",
+    "ours_gpu_gap_pct",
+    "ours_gpu_time_s",
     "notes",
 ]
 

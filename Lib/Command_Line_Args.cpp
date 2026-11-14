@@ -14,7 +14,8 @@ std::string Command_Line_Args::get_usage()
     usage << "Allowed arguments:\n"
           << "  --alpha   : Angle to partition the 2-D plane\n"
           << "  --rho     : Number of different DFS orderings for exploitation\n"
-          << "  --topk    : DFS candidates to polish with 2-opt (default 3)\n"
+          << "  --topk    : DFS candidates to polish with 2-opt (default 2)\n"
+          << "  --ls      : Local search level: 0=2-opt, 1=+Or-opt/relocate, 2=+3-opt (default 0)\n"
           << "  --input   : Input file path\n"
           << " --output   : Output file path\n\n"
 
@@ -22,11 +23,12 @@ std::string Command_Line_Args::get_usage()
           << "  alpha and rho\n\n"
 
           << "Optional arguments:\n"
-          << "  topk, input and output\n\n"
+          << "  topk, ls, input and output\n\n"
 
           << "Acceptable usage examples:\n"
           << "  ./executable --alpha=<alpha> --rho=<rho>\n"
           << "  ./executable --alpha=<alpha> --rho=<rho> --topk=<k>\n"
+          << "  ./executable --alpha=<alpha> --rho=<rho> --ls=2\n"
           << "  ./executable --alpha=<alpha> --rho=<rho> --output=<output>\n"
           << "  ./executable --alpha=<alpha> --rho=<rho> --input=<input>\n"
           << "  ./executable --alpha=<alpha> --rho=<rho> --input=<input> --output=<output>\n";
@@ -176,11 +178,36 @@ void Command_Line_Args::set_topk(int argc, char** argv)
     }
 }
 
+void Command_Line_Args::set_ls(int argc, char** argv)
+{
+    this->ls = 0;  // default: 2-opt only (matched R006–R010 time)
+    bool ls_passed = false;
+
+    for (int i = 1; i < argc; i++)
+    {
+        std::string arg = argv[i];
+        if (arg.rfind("--ls=", 0) == 0)
+        {
+            if (ls_passed)
+            {
+                HANDLE_ERROR("ls must be passed at most once\n" + this->get_usage(), true);
+            }
+            ls_passed = true;
+            this->ls = std::stoi(arg.substr(5));
+            if (this->ls < 0 || this->ls > 2)
+            {
+                HANDLE_ERROR("ls must be 0, 1, or 2", true);
+            }
+        }
+    }
+}
+
 Command_Line_Args::Command_Line_Args(int argc, char** argv) 
 {
     this->set_alpha(argc, argv);
     this->set_rho(argc, argv);
     this->set_topk(argc, argv);
+    this->set_ls(argc, argv);
 
     this->set_input_stream(argc, argv);
     this->set_output_stream(argc, argv);
@@ -217,4 +244,9 @@ int Command_Line_Args::get_rho() const
 int Command_Line_Args::get_topk() const
 {
     return topk;
+}
+
+int Command_Line_Args::get_ls() const
+{
+    return ls;
 }

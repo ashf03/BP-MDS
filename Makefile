@@ -33,6 +33,12 @@ BENCH_TARGETS = $(TARGET) $(TARGET_SET) $(TARGET_DFS) $(TARGET_BFS) $(TARGET_BKT
 # Default: main solver only
 all: $(TARGET)
 
+# Optional CUDA Prim / 2-opt (per-bucket; no full N×N). Needs nvcc + cudart.
+NVCC ?= nvcc
+CUDA_ARCH ?= -arch=sm_90
+CUDA_SRC = Lib/Cuda/cuda_hotpath.cu
+TARGET_CUDA = Bin/bucket-partitioned-MDS-cuda
+
 # All variants used for benchmarking
 bench-marking: $(BENCH_TARGETS)
 
@@ -40,6 +46,17 @@ $(TARGET): $(COMMON_SRC) Lib/Bucket_Partitioned_MDS/Solver.cpp
 	@mkdir -p Bin
 	$(CXX) $(OMPFLAGS) $^ -o $@
 	@echo "Build successful: $@"
+
+# H100 = sm_90; override CUDA_ARCH for other GPUs.
+cuda: $(TARGET_CUDA)
+
+$(TARGET_CUDA): $(COMMON_SRC) Lib/Bucket_Partitioned_MDS/Solver.cpp $(CUDA_SRC)
+	@mkdir -p Bin
+	$(NVCC) -O3 -std=c++17 $(CUDA_ARCH) -Xcompiler "-fopenmp -O3 -std=c++17" \
+		-DBPMDS_USE_CUDA -IInclude \
+		$(COMMON_SRC) Lib/Bucket_Partitioned_MDS/Solver.cpp $(CUDA_SRC) \
+		-o $@ -lgomp -lcudart
+	@echo "Build successful: $@ (CUDA Prim/2-opt)"
 
 $(TARGET_SET): $(COMMON_SRC) Scripts/BenchmarkingCode/Solver_cpp_set.cpp
 	@mkdir -p Bin
@@ -66,4 +83,4 @@ clean:
 	rm -rf Bin/*
 	@echo "Cleaned Bin/"
 
-.PHONY: all bench-marking clean
+.PHONY: all bench-marking clean cuda

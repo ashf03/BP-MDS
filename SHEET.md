@@ -25,7 +25,7 @@ gap% = 100 * (cost - BKS) / BKS
 ## Header (row 1) — do not rename casually
 
 ```text
-sno	size	source	set	instance	path	customers	n	q	bks	alpha_bpmds	bpmds_cost	bpmds_gap_pct	bpmds_time_s	ours_cost	ours_gap_pct	ours_time_s	cuopt_cost	cuopt_gap_pct	cuopt_time_s	notes
+sno	size	source	set	instance	path	customers	n	q	bks	alpha_bpmds	bpmds_cost	bpmds_gap_pct	bpmds_time_s	ours_cost	ours_gap_pct	ours_time_s	cuopt_cost	cuopt_gap_pct	cuopt_time_s	ours_gpu_cost	ours_gpu_gap_pct	ours_gpu_time_s	notes
 ```
 
 ## Agent: update Google Sheet from `scoreboard.tsv`
@@ -68,8 +68,9 @@ When given new results, fill the matching `instance` row:
 | Columns | Meaning |
 |:--------|:--------|
 | `bpmds_cost` `bpmds_gap_pct` `bpmds_time_s` | Upstream BP-MDS |
-| `ours_cost` `ours_gap_pct` `ours_time_s` | This fork |
-| `cuopt_cost` `cuopt_gap_pct` `cuopt_time_s` | NVIDIA cuOpt |
+| `ours_cost` `ours_gap_pct` `ours_time_s` | This fork (CPU lane, Modal 48c) |
+| `cuopt_cost` `cuopt_gap_pct` `cuopt_time_s` | NVIDIA cuOpt (H100; dense N×N) |
+| `ours_gpu_cost` `ours_gpu_gap_pct` `ours_gpu_time_s` | Ours GPU lane — bucketed Euclidean on H100 host (no dense N×N) |
 | `notes` | cite `log.md` run id, e.g. `run=R001 bpmds@… ours@… cuopt@… hw=… timed=…` |
 
 Pins, hardware, and timed region live in root **`log.md`** (append a run block every batch).  

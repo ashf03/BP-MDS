@@ -1,0 +1,127 @@
+{
+  "Abruzzo": {
+    "alpha": 15.0,
+    "rho": 60000,
+    "topk": 2
+  },
+  "Basilicata": {
+    "alpha": 14.5,
+    "rho": 20000,
+    "topk": 2
+  },
+  "Brussels1": {
+    "alpha": 11.5,
+    "rho": 10000,
+    "topk": 2
+  },
+  "Brussels2": {
+    "alpha": 31.0,
+    "rho": 10000,
+    "topk": 2
+  },
+  "Calabria": {
+    "alpha": 10.0,
+    "rho": 10000,
+    "topk": 2
+  },
+  "Campania": {
+    "alpha": 13.0,
+    "rho": 40000,
+    "topk": 2
+  },
+  "Emilia-Romagna": {
+    "alpha": 3.0,
+    "rho": 60000,
+    "topk": 2
+  },
+  "Flanders1": {
+    "alpha": 18.0,
+    "rho": 10000,
+    "topk": 2
+  },
+  "Flanders2": {
+    "alpha": 19.5,
+    "rho": 10000,
+    "topk": 2
+  },
+  "Friuli-Venezia-Giulia": {
+    "alpha": 14.75,
+    "rho": 75000,
+    "topk": 2
+  },
+  "Ghent2": {
+    "alpha": 35.5,
+    "rho": 10000,
+    "topk": 2
+  },
+  "Lazio": {
+    "alpha": 5.5,
+    "rho": 40000,
+    "topk": 2
+  },
+  "Liguria": {
+    "alpha": 5.5,
+    "rho": 40000,
+    "topk": 2
+  },
+  "Lombardia": {
+    "alpha": 15.0,
+    "rho": 10000,
+    "topk": 2
+  },
+  "Marche": {
+    "alpha": 12.0,
+    "rho": 30000,
+    "topk": 2
+  },
+  "Molise": {
+    "alpha": 24.0,
+    "rho": 20000,
+    "topk": 2
+  },
+  "Piemonte": {
+    "alpha": 7.0,
+    "rho": 40000,
+    "topk": 2
+  },
+  "Puglia": {
+    "alpha": 14.0,
+    "rho": 60000,
+    "topk": 2
+  },
+  "Sardegna": {
+    "alpha": 14.75,
+    "rho": 20000,
+    "topk": 2
+  },
+  "Sicilia": {
+    "alpha": 14.0,
+    "rho": 10000,
+    "topk": 2
+  },
+  "Toscana": {
+    "alpha": 14.0,
+    "rho": 10000,
+    "topk": 2
+  },
+  "Trentino-Alto-Adige": {
+    "alpha": 34.0,
+    "rho": 10000,
+    "topk": 2
+  },
+  "Umbria": {
+    "alpha": 11.0,
+    "rho": 10000,
+    "topk": 2
+  },
+  "Valle-D-Aosta": {
+    "alpha": 52.0,
+    "rho": 10000,
+    "topk": 2
+  },
+  "Veneto": {
+    "alpha": 13.0,
+    "rho": 10000,
+    "topk": 2
+  }
+}

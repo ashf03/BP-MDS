@@ -18,12 +18,14 @@ private:
     double alpha;
     int rho;
     int topk;
+    int ls;
 
     void set_input_stream(int, char**);
     void set_output_stream(int, char**);
     void set_alpha(int, char**);
     void set_rho(int, char**);
     void set_topk(int, char**);
+    void set_ls(int, char**);
     std::string get_usage();
 public:
     Command_Line_Args(int, char**);
@@ -32,6 +34,7 @@ public:
     double get_alpha() const;
     int get_rho() const;
     int get_topk() const;
+    int get_ls() const;
 };
 
 #endif

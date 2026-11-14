@@ -20,9 +20,21 @@ LARGE_SIZES = frozenset({"L", "XL", "XXL", "XXXL"})
 RUN_ID_OURS = "R006"
 RUN_ID_BPMDS = "R002"
 RUN_ID_PHASE_B = "R007"
+RUN_ID_CUOPT = "R008"
+RUN_ID_OURS_GPU = "R009"
+RUN_ID_OURS_CUDA = "R010"
+RUN_ID_LS = "R011"
 UPSTREAM_SHA = "5b9e24f"
 OURS_SHA = "a7a7533"
+CUOPT_PIN = "26.10.01"  # cuopt-cu12 from pypi.nvidia.com (gpu-ready)
 DEFAULT_TOPK = 2  # R006: 127/127 time wins; K≥3 still loses time on hard rows
+# Dense float32 N×N cost matrix: n=25k ≈ 2.5 GB; H100 80 GB leaves solver headroom.
+CUOPT_MAX_N = 25000
+CUOPT_TIME_LIMIT_S = 30.0
+# Host OpenMP cores on the H100 box (bucketed solver; no dense N×N / no cuOpt).
+OURS_GPU_OMP = 48
+CUDA_PRIM_MIN = 512
+CUDA_2OPT_MIN = 128
 NOTES_OURS = (
     f"run={RUN_ID_OURS} bpmds@{UPSTREAM_SHA} ours@{OURS_SHA} cuopt@na "
     f"hw=Modal-48c-256G timed=Solver::solve rho=10000 topk={DEFAULT_TOPK}"
@@ -34,6 +46,27 @@ NOTES_BPMDS = (
 NOTES_PHASE_B = (
     f"run={RUN_ID_PHASE_B} bpmds@{UPSTREAM_SHA} ours@{OURS_SHA} cuopt@na "
     f"hw=Modal-48c-256G timed=Solver::solve phase=B topk={DEFAULT_TOPK}"
+)
+NOTES_CUOPT = (
+    f"run={RUN_ID_CUOPT} bpmds@{UPSTREAM_SHA} ours@{OURS_SHA} cuopt@{CUOPT_PIN} "
+    f"hw=Modal-H100 timed=routing.Solve time_limit={CUOPT_TIME_LIMIT_S}s "
+    f"max_n={CUOPT_MAX_N}"
+)
+NOTES_OURS_GPU = (
+    f"run={RUN_ID_OURS_GPU} bpmds@{UPSTREAM_SHA} ours@{OURS_SHA} cuopt@{CUOPT_PIN} "
+    f"hw=Modal-H100 timed=Solver::solve lane=ours-gpu "
+    f"algo=bucketed-euclidean omp={OURS_GPU_OMP} topk={DEFAULT_TOPK}"
+)
+NOTES_OURS_CUDA = (
+    f"run={RUN_ID_OURS_CUDA} bpmds@{UPSTREAM_SHA} ours@{OURS_SHA} cuopt@{CUOPT_PIN} "
+    f"hw=Modal-H100 timed=Solver::solve lane=ours-gpu-cuda "
+    f"algo=bucketed-euclidean+cuda-prim-2opt omp={OURS_GPU_OMP} "
+    f"prim_min={CUDA_PRIM_MIN} twopt_min={CUDA_2OPT_MIN} topk={DEFAULT_TOPK}"
+)
+NOTES_LS = (
+    f"run={RUN_ID_LS} bpmds@{UPSTREAM_SHA} ours@{OURS_SHA} cuopt@{CUOPT_PIN} "
+    f"hw=Modal-48c-256G timed=Solver::solve ls=2 "
+    f"ops=2opt+oropt+relocate+3opt topk={DEFAULT_TOPK}"
 )
 # keep old name for ours path compatibility
 RUN_ID = RUN_ID_OURS
@@ -77,6 +110,12 @@ IGNORE = [
     "report/.mplconfig",
     "**/__pycache__",
     "**/.DS_Store",
+    "**/*.log",
+    "modal_exp/results",
+    "scoreboard.csv",
+    "scoreboard.tsv",
+    "benchmarks/scoreboard.csv",
+    "benchmarks/scoreboard.tsv",
     "Inputs/CVRPLIB",
     "Inputs/FILO2",
     "Inputs/Synthetic",
@@ -90,6 +129,33 @@ image = (
         "git clone --filter=blob:none https://github.com/CodeCraftsmanSandeep/BP-MDS.git /upstream",
         f"cd /upstream && git checkout {UPSTREAM_SHA}",
     )
+    .add_local_dir(str(REPO), remote_path="/repo", ignore=IGNORE)
+)
+
+# GPU image for NVIDIA cuOpt (dense-matrix CVRP). Separate from CPU BP-MDS image.
+gpu_image = (
+    modal.Image.from_registry(
+        "nvidia/cuda:12.4.1-runtime-ubuntu22.04", add_python="3.11"
+    )
+    .apt_install("git", "wget", "ca-certificates")
+    .pip_install("numpy")
+    .pip_install(
+        "cuopt-cu12",
+        extra_options="--extra-index-url=https://pypi.nvidia.com",
+    )
+    .add_local_dir(
+        str(REPO / "modal_exp"),
+        remote_path="/modal_exp",
+        ignore=["**/__pycache__", "**/*.log", "results/*.jsonl", "results/*.log"],
+    )
+)
+
+# Devel image: nvcc + g++ for ours-gpu CUDA Prim / 2-opt (still no dense N×N).
+cuda_solver_image = (
+    modal.Image.from_registry(
+        "nvidia/cuda:12.4.1-devel-ubuntu22.04", add_python="3.11"
+    )
+    .apt_install("g++", "make", "libgomp1", "git", "wget", "ca-certificates")
     .add_local_dir(str(REPO), remote_path="/repo", ignore=IGNORE)
 )
 
@@ -147,6 +213,44 @@ def _build_ours() -> Path:
     return _build_solver(Path("/repo"), "ours-bucket-partitioned-MDS")
 
 
+def _build_ours_cuda() -> Path:
+    """Build BP-MDS with BPMDS_USE_CUDA (nvcc). H100 = sm_90."""
+    src = Path("/repo")
+    out = Path("/tmp/bin")
+    out.mkdir(parents=True, exist_ok=True)
+    binary = out / "ours-bucket-partitioned-MDS-cuda"
+    if binary.is_file():
+        binary.unlink()
+    common = [
+        "Src/Main.cpp",
+        "Lib/Bucket_Partitioned_MDS/CVRP.cpp",
+        "Lib/Bucket_Partitioned_MDS/Solution.cpp",
+        "Lib/Command_Line_Args.cpp",
+        "Lib/Initializer.cpp",
+        "Lib/Bucket_Partitioned_MDS/Solver.cpp",
+        "Lib/Cuda/cuda_hotpath.cu",
+    ]
+    utils = sorted((src / "Lib" / "Utils").rglob("*.cpp"))
+    cmd = [
+        "nvcc",
+        "-O3",
+        "-std=c++17",
+        "-arch=sm_90",
+        "-Xcompiler",
+        "-fopenmp,-O3",
+        "-DBPMDS_USE_CUDA",
+        "-IInclude",
+        *[str(src / c) for c in common],
+        *[str(u) for u in utils],
+        "-o",
+        str(binary),
+        "-lgomp",
+        "-lcudart",
+    ]
+    subprocess.check_call(cmd, cwd=src)
+    return binary
+
+
 def _build_bpmds() -> Path:
     return _build_solver(Path("/upstream"), "bpmds-bucket-partitioned-MDS")
 
@@ -199,15 +303,18 @@ def run_ours_one(
     run_id: str = RUN_ID_OURS,
     sol_tag: str = "",
     topk: int = DEFAULT_TOPK,
+    ls: int = 0,
 ) -> dict:
     os.environ["OMP_NUM_THREADS"] = str(int(CPU_CORES))
     binary = _build_ours()
     notes = (
-        NOTES_PHASE_B
+        NOTES_LS
+        if run_id == RUN_ID_LS
+        else NOTES_PHASE_B
         if run_id == RUN_ID_PHASE_B
         else NOTES_OURS
     )
-    notes = f"{notes} alpha={alpha} rho={rho} topk={topk}"
+    notes = f"{notes} alpha={alpha} rho={rho} topk={topk} ls={ls}"
     vrp = Path("/data/Inputs") / path
     if not vrp.is_file():
         row = {
@@ -219,6 +326,7 @@ def run_ours_one(
             "error": f"missing {vrp}",
             "notes": notes,
             "topk": topk,
+            "ls": ls,
         }
         _append_jsonl(Path(f"/data/results/{run_id}_ours.jsonl"), row)
         vol.commit()
@@ -229,7 +337,7 @@ def run_ours_one(
         out_dir.mkdir(parents=True, exist_ok=True)
         sol = out_dir / f"{instance}_{sol_tag}.sol"
     else:
-        out_dir = Path("/data/Output/ours")
+        out_dir = Path("/data/Output/ours" + ("_ls" if run_id == RUN_ID_LS else ""))
         out_dir.mkdir(parents=True, exist_ok=True)
         sol = out_dir / f"{instance}.sol"
 
@@ -240,6 +348,7 @@ def run_ours_one(
             f"--alpha={alpha}",
             f"--rho={rho}",
             f"--topk={int(topk)}",
+            f"--ls={int(ls)}",
             f"--input={vrp}",
             f"--output={sol}",
         ],
@@ -261,6 +370,7 @@ def run_ours_one(
         "alpha": alpha,
         "rho": rho,
         "topk": int(topk),
+        "ls": int(ls),
         "bks": bks,
         "ours_cost": parsed["cost"],
         "ours_gap_pct": gap,
@@ -567,10 +677,337 @@ def list_large_missing() -> dict:
     }
 
 
-@app.function(image=image, gpu=GPU, timeout=60 * 30, memory=65536)
+@app.function(image=gpu_image, gpu=GPU, timeout=60 * 30, memory=65536)
 def gpu_ready() -> dict:
     out = subprocess.check_output(["nvidia-smi", "-L"], text=True).strip()
-    return {"gpu_request": GPU, "nvidia_smi": out}
+    import cuopt
+
+    return {
+        "gpu_request": GPU,
+        "nvidia_smi": out,
+        "cuopt_version": getattr(cuopt, "__version__", "unknown"),
+        "cuopt_pin": CUOPT_PIN,
+    }
+
+
+def _gap_pct(cost: float | None, bks: str) -> float | None:
+    return _gap(cost, bks)
+
+
+@app.function(
+    image=gpu_image,
+    gpu=GPU,
+    timeout=60 * 60 * 2,
+    memory=131072,  # 128 GiB host RAM for large dense matrices
+    volumes={"/data": vol},
+)
+def run_cuopt_one(
+    instance: str,
+    path: str,
+    bks: str,
+    time_limit_s: float = CUOPT_TIME_LIMIT_S,
+    max_n: int = CUOPT_MAX_N,
+) -> dict:
+    """NVIDIA cuOpt on one large instance (skip if n > max_n)."""
+    import sys
+
+    sys.path.insert(0, "/modal_exp")
+    from cuopt_solve import solve_vrp_path  # noqa: WPS433
+    import cuopt
+
+    vrp = Path("/data/Inputs") / path
+    notes = (
+        f"{NOTES_CUOPT} cuopt_ver={getattr(cuopt, '__version__', '?')}"
+    )
+    if not vrp.is_file():
+        row = {
+            "ok": False,
+            "run_id": RUN_ID_CUOPT,
+            "solver": "cuopt",
+            "instance": instance,
+            "path": path,
+            "error": f"missing {vrp}",
+            "notes": notes,
+        }
+        _append_jsonl(Path(f"/data/results/{RUN_ID_CUOPT}_cuopt.jsonl"), row)
+        vol.commit()
+        return row
+
+    # Quick dimension peek without full parse of huge files when possible.
+    dim = None
+    with vrp.open(errors="replace") as f:
+        for line in f:
+            if line.upper().startswith("DIMENSION"):
+                dim = int(line.split(":")[-1].strip().split()[0])
+                break
+    if dim is not None and dim > int(max_n):
+        row = {
+            "ok": False,
+            "run_id": RUN_ID_CUOPT,
+            "solver": "cuopt",
+            "instance": instance,
+            "path": path,
+            "n": dim,
+            "skipped": True,
+            "error": f"n={dim} > cuopt max_n={max_n} (dense matrix)",
+            "notes": notes,
+        }
+        _append_jsonl(Path(f"/data/results/{RUN_ID_CUOPT}_cuopt.jsonl"), row)
+        vol.commit()
+        return row
+
+    try:
+        result = solve_vrp_path(str(vrp), time_limit_s=float(time_limit_s))
+    except Exception as exc:  # noqa: BLE001 — record OOM/API failures
+        row = {
+            "ok": False,
+            "run_id": RUN_ID_CUOPT,
+            "solver": "cuopt",
+            "instance": instance,
+            "path": path,
+            "error": f"{type(exc).__name__}: {exc}",
+            "notes": notes,
+        }
+        _append_jsonl(Path(f"/data/results/{RUN_ID_CUOPT}_cuopt.jsonl"), row)
+        vol.commit()
+        return row
+
+    gap = _gap_pct(result.get("cuopt_cost"), bks)
+    row = {
+        "ok": bool(result.get("ok")),
+        "run_id": RUN_ID_CUOPT,
+        "solver": "cuopt",
+        "instance": instance,
+        "path": path,
+        "bks": bks,
+        "cuopt_cost": result.get("cuopt_cost"),
+        "cuopt_gap_pct": gap,
+        "cuopt_time_s": result.get("cuopt_time_s"),
+        "matrix_build_s": result.get("matrix_build_s"),
+        "n": result.get("n"),
+        "n_fleet": result.get("n_fleet"),
+        "n_routes": result.get("n_routes"),
+        "status": result.get("status"),
+        "time_limit_s": time_limit_s,
+        "cuopt_version": getattr(cuopt, "__version__", "unknown"),
+        "notes": notes,
+    }
+    _append_jsonl(Path(f"/data/results/{RUN_ID_CUOPT}_cuopt.jsonl"), row)
+    patch = Path(f"/data/results/{RUN_ID_CUOPT}_cuopt_patch.csv")
+    write_header = not patch.is_file()
+    with patch.open("a", newline="") as f:
+        fields = [
+            "instance",
+            "cuopt_cost",
+            "cuopt_gap_pct",
+            "cuopt_time_s",
+            "notes",
+            "ok",
+            "n",
+            "status",
+        ]
+        w = csv.DictWriter(f, fieldnames=fields)
+        if write_header:
+            w.writeheader()
+
+        w.writerow(
+            {
+                "instance": instance,
+                "cuopt_cost": ""
+                if result.get("cuopt_cost") is None
+                else f"{float(result['cuopt_cost']):.6f}",
+                "cuopt_gap_pct": "" if gap is None else f"{gap:.6f}",
+                "cuopt_time_s": ""
+                if result.get("cuopt_time_s") is None
+                else f"{float(result['cuopt_time_s']):.6f}",
+                "notes": notes,
+                "ok": row["ok"],
+                "n": result.get("n"),
+                "status": result.get("status"),
+            }
+        )
+    vol.commit()
+    return row
+
+
+def _run_ours_gpu_impl(
+    instance: str,
+    path: str,
+    alpha: float,
+    rho: int,
+    bks: str,
+    topk: int,
+    *,
+    use_cuda: bool,
+) -> dict:
+    """Shared ours-gpu / ours-cuda solve body."""
+    omp = str(int(OURS_GPU_OMP))
+    os.environ["OMP_NUM_THREADS"] = omp
+    run_id = RUN_ID_OURS_CUDA if use_cuda else RUN_ID_OURS_GPU
+    notes_base = NOTES_OURS_CUDA if use_cuda else NOTES_OURS_GPU
+    solver = "ours_gpu_cuda" if use_cuda else "ours_gpu"
+    if use_cuda:
+        os.environ["BPMDS_CUDA"] = "1"
+        os.environ["BPMDS_CUDA_PRIM_MIN"] = str(CUDA_PRIM_MIN)
+        os.environ["BPMDS_CUDA_2OPT_MIN"] = str(CUDA_2OPT_MIN)
+        binary = _build_ours_cuda()
+    else:
+        os.environ.pop("BPMDS_CUDA", None)
+        binary = _build_ours()
+    notes = f"{notes_base} alpha={alpha} rho={rho} topk={topk}"
+    smi = ""
+    try:
+        smi = subprocess.check_output(["nvidia-smi", "-L"], text=True).strip()
+    except Exception as exc:  # noqa: BLE001
+        smi = f"nvidia-smi_failed:{exc}"
+
+    vrp = Path("/data/Inputs") / path
+    tag = "ours_gpu_cuda" if use_cuda else "ours_gpu"
+    if not vrp.is_file():
+        row = {
+            "ok": False,
+            "run_id": run_id,
+            "solver": solver,
+            "instance": instance,
+            "path": path,
+            "error": f"missing {vrp}",
+            "notes": notes,
+            "nvidia_smi": smi,
+            "use_cuda": use_cuda,
+        }
+        _append_jsonl(Path(f"/data/results/{run_id}_{tag}.jsonl"), row)
+        vol.commit()
+        return row
+
+    out_dir = Path(f"/data/Output/{tag}")
+    out_dir.mkdir(parents=True, exist_ok=True)
+    sol = out_dir / f"{instance}.sol"
+
+    wall0 = time.perf_counter()
+    proc = subprocess.run(
+        [
+            str(binary),
+            f"--alpha={alpha}",
+            f"--rho={rho}",
+            f"--topk={int(topk)}",
+            f"--input={vrp}",
+            f"--output={sol}",
+        ],
+        capture_output=True,
+        text=True,
+    )
+    wall = time.perf_counter() - wall0
+    parsed = _parse_sol(sol)
+    time_s = parsed["solve_time_s"] if parsed["solve_time_s"] is not None else wall
+    gap = _gap(parsed["cost"], bks)
+
+    row = {
+        "ok": proc.returncode == 0 and parsed["cost"] is not None,
+        "run_id": run_id,
+        "solver": solver,
+        "instance": instance,
+        "path": path,
+        "alpha": alpha,
+        "rho": rho,
+        "topk": int(topk),
+        "bks": bks,
+        "ours_gpu_cost": parsed["cost"],
+        "ours_gpu_gap_pct": gap,
+        "ours_gpu_time_s": time_s,
+        "wall_s": wall,
+        "mem_mb": parsed["mem_mb"],
+        "returncode": proc.returncode,
+        "output": str(sol),
+        "omp": omp,
+        "nvidia_smi": smi,
+        "use_cuda": use_cuda,
+        "notes": notes,
+        "stderr_tail": proc.stderr[-1500:],
+        "stdout_tail": proc.stdout[-1500:],
+    }
+    _append_jsonl(Path(f"/data/results/{run_id}_{tag}.jsonl"), row)
+    patch = Path(f"/data/results/{run_id}_{tag}_patch.csv")
+    write_header = not patch.is_file()
+    with patch.open("a", newline="") as f:
+        fields = [
+            "instance",
+            "ours_gpu_cost",
+            "ours_gpu_gap_pct",
+            "ours_gpu_time_s",
+            "notes",
+            "ok",
+            "alpha",
+            "rho",
+            "topk",
+            "mem_mb",
+            "use_cuda",
+        ]
+        w = csv.DictWriter(f, fieldnames=fields)
+        if write_header:
+            w.writeheader()
+        w.writerow(
+            {
+                "instance": instance,
+                "ours_gpu_cost": ""
+                if parsed["cost"] is None
+                else f"{parsed['cost']:.6f}",
+                "ours_gpu_gap_pct": "" if gap is None else f"{gap:.6f}",
+                "ours_gpu_time_s": "" if time_s is None else f"{time_s:.6f}",
+                "notes": notes,
+                "ok": row["ok"],
+                "alpha": alpha,
+                "rho": rho,
+                "topk": topk,
+                "mem_mb": parsed["mem_mb"],
+                "use_cuda": use_cuda,
+            }
+        )
+    vol.commit()
+    return row
+
+
+@app.function(
+    image=image,
+    gpu=GPU,
+    cpu=OURS_GPU_OMP,
+    memory=131072,  # 128 GiB host RAM — O(n) bucketed, not dense N×N
+    timeout=60 * 60 * 6,
+    volumes={"/data": vol},
+)
+def run_ours_gpu_one(
+    instance: str,
+    path: str,
+    alpha: float,
+    rho: int,
+    bks: str,
+    topk: int = DEFAULT_TOPK,
+) -> dict:
+    """GPU-lane ours: OpenMP on H100 host (no CUDA kernels)."""
+    return _run_ours_gpu_impl(
+        instance, path, alpha, rho, bks, topk, use_cuda=False
+    )
+
+
+@app.function(
+    image=cuda_solver_image,
+    gpu=GPU,
+    cpu=OURS_GPU_OMP,
+    memory=131072,
+    timeout=60 * 60 * 6,
+    volumes={"/data": vol},
+)
+def run_ours_cuda_one(
+    instance: str,
+    path: str,
+    alpha: float,
+    rho: int,
+    bks: str,
+    topk: int = DEFAULT_TOPK,
+) -> dict:
+    """GPU-lane ours with CUDA Prim / 2-opt inside buckets (still no dense N×N)."""
+    return _run_ours_gpu_impl(
+        instance, path, alpha, rho, bks, topk, use_cuda=True
+    )
 
 
 def _phase_b_job_builder(
@@ -787,6 +1224,9 @@ def main(
     rho: int = 10000,
     alpha: float = 0.0,
     topk: int = DEFAULT_TOPK,
+    ls: int = 0,
+    time_limit: float = CUOPT_TIME_LIMIT_S,
+    max_n: int = CUOPT_MAX_N,
 ):
     if cmd == "list-large":
         print(list_large_missing.remote())
@@ -802,6 +1242,203 @@ def main(
         return
     rows = _large_rows(_scoreboard_rows_local())
     by_name = {r["instance"]: r for r in rows}
+
+    if cmd == "cuopt-one":
+        if instance not in by_name:
+            raise SystemExit(f"{instance} not in large suite (L/XL/XXL/XXXL)")
+        r = by_name[instance]
+        print(
+            run_cuopt_one.remote(
+                r["instance"],
+                r["path"],
+                r.get("bks", ""),
+                float(time_limit),
+                int(max_n),
+            )
+        )
+        return
+    if cmd == "cuopt-fit":
+        # All large rows with n ≤ max_n (dense-matrix feasible on H100).
+        jobs = []
+        for r in rows:
+            try:
+                n = int(r["n"])
+            except (TypeError, ValueError):
+                continue
+            if n <= int(max_n):
+                jobs.append(
+                    (
+                        r["instance"],
+                        r["path"],
+                        r.get("bks", ""),
+                        float(time_limit),
+                        int(max_n),
+                    )
+                )
+        print({"cuopt_fit_jobs": len(jobs), "max_n": max_n, "time_limit": time_limit})
+        results = list(run_cuopt_one.starmap(jobs))
+        ok = sum(1 for x in results if x.get("ok"))
+        skipped = sum(1 for x in results if x.get("skipped"))
+        out = REPO / "modal_exp" / "results" / f"{RUN_ID_CUOPT}_cuopt.jsonl"
+        out.parent.mkdir(parents=True, exist_ok=True)
+        with out.open("w") as f:
+            for x in results:
+                f.write(json.dumps(x, sort_keys=True) + "\n")
+        print(
+            {
+                "ok": ok,
+                "skipped": skipped,
+                "failed": len(results) - ok - skipped,
+                "local_jsonl": str(out),
+            }
+        )
+        return
+
+    knobs_path = REPO / "modal_exp" / "results" / "R009_knobs.json"
+    knobs: dict = {}
+    if knobs_path.is_file():
+        knobs = json.loads(knobs_path.read_text())
+
+    def _gpu_knob(r: dict) -> tuple[float, int, int]:
+        k = knobs.get(r["instance"], {})
+        a = float(k["alpha"]) if k.get("alpha") is not None else float(r["alpha_bpmds"] or 0)
+        if alpha > 0:
+            a = float(alpha)
+        rh = int(k["rho"]) if k.get("rho") is not None else int(rho)
+        tk = int(k["topk"]) if k.get("topk") is not None else int(topk)
+        return a, rh, tk
+
+    if cmd == "ours-ls-bks":
+        # Stronger LS (default ls=2) on large+BKS with R009 knobs.
+        ls_v = int(ls) if ls > 0 else 2
+        jobs = []
+        for r in rows:
+            if not (r.get("bks") or "").strip():
+                continue
+            a, rh, tk = _gpu_knob(r)
+            jobs.append(
+                (
+                    r["instance"],
+                    r["path"],
+                    a,
+                    rh,
+                    r.get("bks", ""),
+                    RUN_ID_LS,
+                    "",
+                    tk,
+                    ls_v,
+                )
+            )
+        print({"ours_ls_bks_jobs": len(jobs), "ls": ls_v})
+        results = list(run_ours_one.starmap(jobs))
+        ok = sum(1 for x in results if x.get("ok"))
+        out = (
+            REPO
+            / "modal_exp"
+            / "results"
+            / f"{RUN_ID_LS}_ours_ls{ls_v}.jsonl"
+        )
+        out.parent.mkdir(parents=True, exist_ok=True)
+        with out.open("w") as f:
+            for x in results:
+                f.write(json.dumps(x, sort_keys=True) + "\n")
+        print({"ok": ok, "failed": len(results) - ok, "local_jsonl": str(out)})
+        return
+    if cmd == "ours-gpu-one":
+        if instance not in by_name:
+            raise SystemExit(f"{instance} not in large suite (L/XL/XXL/XXXL)")
+        r = by_name[instance]
+        a, rh, tk = _gpu_knob(r)
+        print(
+            run_ours_gpu_one.remote(
+                r["instance"], r["path"], a, rh, r.get("bks", ""), tk
+            )
+        )
+        return
+    if cmd == "ours-cuda-one":
+        if instance not in by_name:
+            raise SystemExit(f"{instance} not in large suite (L/XL/XXL/XXXL)")
+        r = by_name[instance]
+        a, rh, tk = _gpu_knob(r)
+        print(
+            run_ours_cuda_one.remote(
+                r["instance"], r["path"], a, rh, r.get("bks", ""), tk
+            )
+        )
+        return
+    if cmd == "ours-gpu-bks":
+        # All large+BKS (25): includes n>25k where stock cuOpt is skip.
+        jobs = []
+        for r in rows:
+            if not (r.get("bks") or "").strip():
+                continue
+            a, rh, tk = _gpu_knob(r)
+            jobs.append(
+                (r["instance"], r["path"], a, rh, r.get("bks", ""), tk)
+            )
+        print({"ours_gpu_bks_jobs": len(jobs), "knobs": str(knobs_path)})
+        results = list(run_ours_gpu_one.starmap(jobs))
+        ok = sum(1 for x in results if x.get("ok"))
+        out = REPO / "modal_exp" / "results" / f"{RUN_ID_OURS_GPU}_ours_gpu.jsonl"
+        out.parent.mkdir(parents=True, exist_ok=True)
+        with out.open("w") as f:
+            for x in results:
+                f.write(json.dumps(x, sort_keys=True) + "\n")
+        print({"ok": ok, "failed": len(results) - ok, "local_jsonl": str(out)})
+        return
+    if cmd == "ours-cuda-bks":
+        jobs = []
+        for r in rows:
+            if not (r.get("bks") or "").strip():
+                continue
+            a, rh, tk = _gpu_knob(r)
+            jobs.append(
+                (r["instance"], r["path"], a, rh, r.get("bks", ""), tk)
+            )
+        print({"ours_cuda_bks_jobs": len(jobs), "knobs": str(knobs_path)})
+        results = list(run_ours_cuda_one.starmap(jobs))
+        ok = sum(1 for x in results if x.get("ok"))
+        out = (
+            REPO
+            / "modal_exp"
+            / "results"
+            / f"{RUN_ID_OURS_CUDA}_ours_gpu_cuda.jsonl"
+        )
+        out.parent.mkdir(parents=True, exist_ok=True)
+        with out.open("w") as f:
+            for x in results:
+                f.write(json.dumps(x, sort_keys=True) + "\n")
+        print({"ok": ok, "failed": len(results) - ok, "local_jsonl": str(out)})
+        return
+    if cmd == "ours-gpu-fit":
+        # Same 5 dense-fit rows as cuOpt — head-to-head on H100 box.
+        jobs = []
+        for r in rows:
+            try:
+                n = int(r["n"])
+            except (TypeError, ValueError):
+                continue
+            if n > int(max_n):
+                continue
+            a, rh, tk = _gpu_knob(r)
+            jobs.append(
+                (r["instance"], r["path"], a, rh, r.get("bks", ""), tk)
+            )
+        print({"ours_gpu_fit_jobs": len(jobs), "max_n": max_n})
+        results = list(run_ours_gpu_one.starmap(jobs))
+        ok = sum(1 for x in results if x.get("ok"))
+        out = (
+            REPO
+            / "modal_exp"
+            / "results"
+            / f"{RUN_ID_OURS_GPU}_ours_gpu_fit.jsonl"
+        )
+        out.parent.mkdir(parents=True, exist_ok=True)
+        with out.open("w") as f:
+            for x in results:
+                f.write(json.dumps(x, sort_keys=True) + "\n")
+        print({"ok": ok, "failed": len(results) - ok, "local_jsonl": str(out)})
+        return
 
     def _args(topk_v: int = topk):
         return [
@@ -833,6 +1470,7 @@ def main(
                 RUN_ID_OURS,
                 "",
                 int(topk),
+                int(ls),
             )
         )
         return
@@ -1089,7 +1727,10 @@ def main(
         print({"ok": ok, "failed": len(results) - ok, "local_jsonl": str(out)})
         return
     raise SystemExit(
-        "cmd: list-large | gpu-ready | ours-one | ours-large | topk-sweep | "
+        "cmd: list-large | gpu-ready | cuopt-one | cuopt-fit | "
+        "ours-gpu-one | ours-gpu-fit | ours-gpu-bks | "
+        "ours-cuda-one | ours-cuda-bks | ours-ls-bks | "
+        "ours-one | ours-large | topk-sweep | "
         "phase-b | phase-b-batch1 | phase-b-batch2 | phase-b2 | phase-b3 | "
         "phase-b4 | phase-b5 | harvest | bpmds-one | bpmds-large | harvest-bpmds"
     )

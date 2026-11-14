@@ -1,0 +1,74 @@
+{
+  "best": {
+    "Marche": {
+      "ok": true,
+      "run_id": "R004",
+      "solver": "ours",
+      "instance": "Marche",
+      "path": "FILO2/I/Marche.vrp",
+      "alpha": 13.0,
+      "rho": 40000,
+      "bks": "420484426.00",
+      "ours_cost": 427260109.1746,
+      "ours_gap_pct": 1.6113993184137585,
+      "ours_time_s": 38.5511,
+      "wall_s": 39.511191559000004,
+      "mem_mb": 269.1016,
+      "returncode": 0,
+      "output": "/data/Output/ours/phaseb/Marche_a13_r40000.sol",
+      "omp": "48",
+      "notes": "run=R004 bpmds@5b9e24f ours@1190a34 cuopt@na hw=Modal-48c-256G timed=Solver::solve phase=B alpha=13.0 rho=40000",
+      "stderr_tail": " size=59\n[bpmds] progress 12/28 buckets (42.9%) elapsed=0.18s last_bucket=25 size=321\n[bpmds] progress 13/28 buckets (46.4%) elapsed=0.18s last_bucket=5 size=44\n[bpmds] progress 14/28 buckets (50.0%) elapsed=0.19s last_bucket=26 size=363\n[bpmds] progress 15/28 buckets (53.6%) elapsed=0.22s last_bucket=0 size=263\n[bpmds] progress 16/28 buckets (57.1%) elapsed=2.12s last_bucket=18 size=12795\n[bpmds] progress 17/28 buckets (60.7%) elapsed=2.49s last_bucket=16 size=14206\n[bpmds] progress 18/28 buckets (64.3%) elapsed=3.51s last_bucket=17 size=14127\n[bpmds] progress 19/28 buckets (67.9%) elapsed=4.29s last_bucket=19 size=16108\n[bpmds] progress 20/28 buckets (71.4%) elapsed=4.44s last_bucket=23 size=19227\n[bpmds] progress 21/28 buckets (75.0%) elapsed=4.80s last_bucket=15 size=19495\n[bpmds] progress 22/28 buckets (78.6%) elapsed=5.98s last_bucket=14 size=27194\n[bpmds] progress 23/28 buckets (82.1%) elapsed=12.01s last_bucket=13 size=40033\n[bpmds] progress 24/28 buckets (85.7%) elapsed=12.91s last_bucket=21 size=40844\n[bpmds] progress 25/28 buckets (89.3%) elapsed=16.08s last_bucket=11 size=44362\n[bpmds] progress 26/28 buckets (92.9%) elapsed=16.75s last_bucket=12 size=46227\n[bpmds] progress 27/28 buckets (96.4%) elapsed=17.72s last_bucket=20 size=47044\n[bpmds] progress 28/28 buckets (100.0%) elapsed=38.55s last_bucket=22 size=76019\n[bpmds] solve finished in 38.5511s cost=427260109.1746 routes=4231 mem_delta_mb=269.1016\n[bpmds] verifying...\n[bpmds] writing solution...\n[bpmds] done.\n",
+      "stdout_tail": ""
+    },
+    "Friuli-Venezia-Giulia": {
+      "ok": true,
+      "run_id": "R004",
+      "solver": "ours",
+      "instance": "Friuli-Venezia-Giulia",
+      "path": "FILO2/I/Friuli-Venezia-Giulia.vrp",
+      "alpha": 14.75,
+      "rho": 60000,
+      "bks": "415805616.00",
+      "ours_cost": 420408589.9117,
+      "ours_gap_pct": 1.1070013810732202,
+      "ours_time_s": 59.4084,
+      "wall_s": 60.040257483000005,
+      "mem_mb": 408.1367,
+      "returncode": 0,
+      "output": "/data/Output/ours/phaseb/Friuli-Venezia-Giulia_a14.75_r60000.sol",
+      "omp": "48",
+      "notes": "run=R004 bpmds@5b9e24f ours@1190a34 cuopt@na hw=Modal-48c-256G timed=Solver::solve phase=B alpha=14.75 rho=60000",
+      "stderr_tail": "2s last_bucket=0 size=773\n[bpmds] progress 9/25 buckets (36.0%) elapsed=0.32s last_bucket=2 size=192\n[bpmds] progress 10/25 buckets (40.0%) elapsed=0.35s last_bucket=4 size=793\n[bpmds] progress 11/25 buckets (44.0%) elapsed=0.40s last_bucket=1 size=225\n[bpmds] progress 12/25 buckets (48.0%) elapsed=0.41s last_bucket=18 size=1012\n[bpmds] progress 13/25 buckets (52.0%) elapsed=0.52s last_bucket=20 size=856\n[bpmds] progress 14/25 buckets (56.0%) elapsed=0.53s last_bucket=17 size=512\n[bpmds] progress 15/25 buckets (60.0%) elapsed=0.60s last_bucket=16 size=1392\n[bpmds] progress 16/25 buckets (64.0%) elapsed=0.84s last_bucket=15 size=1677\n[bpmds] progress 17/25 buckets (68.0%) elapsed=0.95s last_bucket=22 size=1540\n[bpmds] progress 18/25 buckets (72.0%) elapsed=1.02s last_bucket=6 size=1572\n[bpmds] progress 19/25 buckets (76.0%) elapsed=1.05s last_bucket=21 size=2034\n[bpmds] progress 20/25 buckets (80.0%) elapsed=1.18s last_bucket=12 size=3141\n[bpmds] progress 21/25 buckets (84.0%) elapsed=1.58s last_bucket=7 size=8064\n[bpmds] progress 22/25 buckets (88.0%) elapsed=10.01s last_bucket=11 size=38526\n[bpmds] progress 23/25 buckets (92.0%) elapsed=25.22s last_bucket=8 size=62693\n[bpmds] progress 24/25 buckets (96.0%) elapsed=41.11s last_bucket=10 size=77470\n[bpmds] progress 25/25 buckets (100.0%) elapsed=59.40s last_bucket=9 size=93661\n[bpmds] solve finished in 59.4084s cost=420408589.9117 routes=3026 mem_delta_mb=408.1367\n[bpmds] verifying...\n[bpmds] writing solution...\n[bpmds] done.\n",
+      "stdout_tail": ""
+    }
+  },
+  "summary": [
+    {
+      "instance": "Friuli-Venezia-Giulia",
+      "alpha": 14.75,
+      "rho": 60000,
+      "ours_gap_pct": 1.1070013810732202,
+      "bpmds_gap_pct": 1.106511,
+      "d_gap": 0.0004903810732201919,
+      "ours_time_s": 59.4084,
+      "bpmds_time_s": 119.6509,
+      "gap_win": false,
+      "time_win": true,
+      "both": false
+    },
+    {
+      "instance": "Marche",
+      "alpha": 13.0,
+      "rho": 40000,
+      "ours_gap_pct": 1.6113993184137585,
+      "bpmds_gap_pct": 1.608894,
+      "d_gap": 0.0025053184137584505,
+      "ours_time_s": 38.5511,
+      "bpmds_time_s": 94.8351,
+      "gap_win": false,
+      "time_win": true,
+      "both": false
+    }
+  ]
+}
