@@ -47,19 +47,26 @@ sno	size	source	set	instance	path	customers	n	q	bks	alpha_bpmds	bpmds_cost	bpmds
 
 Timed region = **`Execution time for solving (sec)`** inside each `.sol` (not wall clock around the process).
 
-After a Modal batch:
+**Canonical runner** (`.sol` / jsonl / patch → scoreboard):
 
 ```bash
-modal volume get bp-mds-data /results/R001_ours_patch.csv modal_exp/results/R001_ours_patch.csv
-# or harvest if patch incomplete:
-# modal run modal_exp/app.py --cmd harvest
-# modal volume get bp-mds-data /results/R001_ours_patch.csv modal_exp/results/R001_ours_patch.csv
+# From a directory of .sol files (Solver::solve time + Cost)
+python modal_exp/record_sols.py --solver ours --sol-dir /path/to/Output/ours \
+  --notes 'run=R012 bpmds@… ours@… cuopt@na hw=Modal-48c-256G timed=Solver::solve'
 
-python modal_exp/apply_results.py --patch-csv modal_exp/results/R001_ours_patch.csv
-# then full-replace the Google Sheet tab from scoreboard.tsv
+# Dry-run + only keep both-win vs BP-MDS
+python modal_exp/record_sols.py --solver ours --jsonl modal_exp/results/R011_ours_ls1.jsonl \
+  --both-win-vs bpmds --dry-run
+
+# Modal patch / jsonl (same as before)
+python modal_exp/record_sols.py --solver ours --patch-csv modal_exp/results/R001_ours_patch.csv
+python modal_exp/record_sols.py --solver ours_gpu --jsonl modal_exp/results/R010_ours_gpu_cuda.jsonl
+# then paste scoreboard.tsv into the Google Sheet
 ```
 
-Fill `ours_*` from ours runs; `bpmds_time_s` only from upstream binary on the **same** Modal CPU shape; `cuopt_*` from H100 runs. Always cite `log.md` run id in `notes`.
+`apply_results.py` is a thin alias of `record_sols.py`.
+
+Fill `ours_*` from ours runs; `bpmds_time_s` only from upstream binary on the **same** Modal CPU shape; `cuopt_*` / `ours_gpu_*` from H100 runs. Always cite `log.md` run id in `notes`.
 
 ## Agent: update `scoreboard.tsv` after a run
 

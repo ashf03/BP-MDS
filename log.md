@@ -36,6 +36,16 @@ run=R00X bpmds@<sha> ours@<sha> cuopt@<tag|na> hw=<spec> timed=<region>
 
 Newest first. Add a block per batch.
 
+### Tooling — record_sols.py (`.sol` → scoreboard) — DONE
+
+- **date:** 2026-11-14
+- **what:** canonical production recorder `modal_exp/record_sols.py`
+- **inputs:** `--sol` / `--sol-dir` (parses Cost + `Execution time for solving (sec)`), `--jsonl`, `--patch-csv`
+- **flags:** `--notes`, `--both-win-vs {bpmds,cuopt,ours}`, `--dry-run`, `--large-only`, `--recursive`
+- **instance tags:** strips `_a<alpha>_r<rho>` from phase-B `.sol` stems
+- **alias:** `apply_results.py` → same CLI
+- **docs:** `SHEET.md` Recording · `modal_exp/README.md`
+
 ### R011 — stronger LS (Or-opt / relocate / 3-opt) — COMPLETE
 
 - **date:** 2026-11-14

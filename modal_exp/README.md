@@ -40,7 +40,13 @@ python modal_exp/apply_results.py --solver ours_gpu --jsonl modal_exp/results/R0
 
 # Stronger LS: --ls=1 Or-opt/relocate, --ls=2 + limited 3-opt
 modal run modal_exp/app.py --cmd ours-ls-bks --ls 2
-python modal_exp/apply_results.py --solver ours --jsonl modal_exp/results/R011_ours_ls.jsonl
+python modal_exp/record_sols.py --solver ours --jsonl modal_exp/results/R011_ours_ls2.jsonl \
+  --both-win-vs bpmds
+
+# Record any .sol dir → scoreboard (timed region = Solver::solve from .sol)
+python modal_exp/record_sols.py --solver ours --sol-dir /path/to/Output/ours --dry-run
+python modal_exp/record_sols.py --solver bpmds --sol-dir /path/to/Output/bpmds \
+  --notes 'run=R002 …'
 ```
 
 **Scale note:** stock cuOpt needs a dense cost matrix (`n > max_n` → skip). **ours-gpu** / **ours-cuda** use angular buckets (O(n) memory) on H100 — fills `ours_gpu_*`. CUDA path: `BPMDS_USE_CUDA`, thresholds `BPMDS_CUDA_PRIM_MIN` (default 512) / `BPMDS_CUDA_2OPT_MIN` (128).

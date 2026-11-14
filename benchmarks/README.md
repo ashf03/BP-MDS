@@ -13,3 +13,10 @@ Rebuild (writes root + `benchmarks/`):
 ```bash
 python3 benchmarks/build_scoreboard.py
 ```
+
+Record solves into the scoreboard (`.sol` Cost + Solver::solve time):
+
+```bash
+python3 modal_exp/record_sols.py --solver ours --sol-dir Output/ours --dry-run
+python3 modal_exp/record_sols.py --solver ours --sol-dir Output/ours --notes 'run=R0XX …'
+```
