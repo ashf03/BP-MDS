@@ -76,6 +76,7 @@ namespace Bucket_Partitioned_MDS
     private:
         const double alpha;
         const int rho;
+        const int topk;
 
         void get_bucket(
             const CVRP&,
@@ -129,7 +130,8 @@ namespace Bucket_Partitioned_MDS
     public:
         Solver(
             const double,
-            const int);
+            const int,
+            const int topk_ = 2);
 
         Solution solve(
             const CVRP&) const;

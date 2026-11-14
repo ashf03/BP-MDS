@@ -36,6 +36,18 @@ run=R00X bpmds@<sha> ours@<sha> cuopt@<tag|na> hw=<spec> timed=<region>
 
 Newest first. Add a block per batch.
 
+### R006 — top-K tune (default K=2) + large re-bench — COMPLETE
+
+- **date:** 2026-11-14
+- **what:** `--topk` CLI + tight DFS prune (abort on best-so-far); sweep K∈{1,2,3,4}; full large 127 @ K=2
+- **workspace:** Modal **`aquin`**
+- **sweep (31 hard):** K=1 31/31 time · 2/20 gap · **K=2 31/31 time · 8/20 gap** · K=3 30/31 · 10/20 · K=4 27/31 · 10/20
+- **choice:** **topk=2** — only K that restores full time wins on hard set while keeping most of the post-LS gap lift vs K=1
+- **R006 full large @ K=2:** **127/127** time≤ bpmds (median ~2.05×) · large+BKS gap≤ **13/25** · both **13/25**
+- **vs R005 (K=12):** much faster (109/127 quicker) but gap 13/25 vs 19/25 — K=12 gap needs time we cannot spend at matched ρ=10k
+- **artifacts:** `R006_ours.jsonl` · `R006_topk_sweep.jsonl` · Modal `ap-2qiv1MZrgj5vPnvBJlrVcM`
+- **notes paste:** `run=R006 bpmds@5b9e24f ours@653111b cuopt@na hw=Modal-48c-256G timed=Solver::solve rho=10000 topk=2`
+
 ### R005 — Modal ours large suite with top-K=12 Solver — COMPLETE
 
 - **date:** 2026-11-14

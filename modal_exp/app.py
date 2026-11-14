@@ -17,14 +17,15 @@ APP_NAME = "bp-mds-exp"
 REPO = Path(__file__).resolve().parents[1]
 
 LARGE_SIZES = frozenset({"L", "XL", "XXL", "XXXL"})
-RUN_ID_OURS = "R005"
+RUN_ID_OURS = "R006"
 RUN_ID_BPMDS = "R002"
 RUN_ID_PHASE_B = "R004"
 UPSTREAM_SHA = "5b9e24f"
-OURS_SHA = "653111b"
+OURS_SHA = "653111b"  # base; retag after topk-tune commit
+DEFAULT_TOPK = 2  # R006: 127/127 time wins; K≥3 still loses time on hard rows
 NOTES_OURS = (
     f"run={RUN_ID_OURS} bpmds@{UPSTREAM_SHA} ours@{OURS_SHA} cuopt@na "
-    "hw=Modal-48c-256G timed=Solver::solve rho=10000 topk=12"
+    f"hw=Modal-48c-256G timed=Solver::solve rho=10000 topk={DEFAULT_TOPK}"
 )
 NOTES_BPMDS = (
     f"run={RUN_ID_BPMDS} bpmds@{UPSTREAM_SHA} ours@{OURS_SHA} cuopt@na "
@@ -136,6 +137,10 @@ def _build_solver(src: Path, binary_name: str) -> Path:
 
 
 def _build_ours() -> Path:
+    # Always rebuild so Solver/topk edits from add_local_dir are picked up.
+    binary = Path("/tmp/bin/ours-bucket-partitioned-MDS")
+    if binary.is_file():
+        binary.unlink()
     return _build_solver(Path("/repo"), "ours-bucket-partitioned-MDS")
 
 
@@ -190,6 +195,7 @@ def run_ours_one(
     bks: str,
     run_id: str = RUN_ID_OURS,
     sol_tag: str = "",
+    topk: int = DEFAULT_TOPK,
 ) -> dict:
     os.environ["OMP_NUM_THREADS"] = str(int(CPU_CORES))
     binary = _build_ours()
@@ -198,7 +204,7 @@ def run_ours_one(
         if run_id == RUN_ID_PHASE_B
         else NOTES_OURS
     )
-    notes = f"{notes} alpha={alpha} rho={rho}"
+    notes = f"{notes} alpha={alpha} rho={rho} topk={topk}"
     vrp = Path("/data/Inputs") / path
     if not vrp.is_file():
         row = {
@@ -209,6 +215,7 @@ def run_ours_one(
             "path": path,
             "error": f"missing {vrp}",
             "notes": notes,
+            "topk": topk,
         }
         _append_jsonl(Path(f"/data/results/{run_id}_ours.jsonl"), row)
         vol.commit()
@@ -229,6 +236,7 @@ def run_ours_one(
             str(binary),
             f"--alpha={alpha}",
             f"--rho={rho}",
+            f"--topk={int(topk)}",
             f"--input={vrp}",
             f"--output={sol}",
         ],
@@ -249,6 +257,7 @@ def run_ours_one(
         "path": path,
         "alpha": alpha,
         "rho": rho,
+        "topk": int(topk),
         "bks": bks,
         "ours_cost": parsed["cost"],
         "ours_gap_pct": gap,
@@ -727,6 +736,7 @@ def main(
     instance: str = "",
     rho: int = 10000,
     alpha: float = 0.0,
+    topk: int = DEFAULT_TOPK,
 ):
     if cmd == "list-large":
         print(list_large_missing.remote())
@@ -743,7 +753,7 @@ def main(
     rows = _large_rows(_scoreboard_rows_local())
     by_name = {r["instance"]: r for r in rows}
 
-    def _args():
+    def _args(topk_v: int = topk):
         return [
             (
                 r["instance"],
@@ -751,6 +761,9 @@ def main(
                 float(r["alpha_bpmds"] or 0),
                 rho,
                 r.get("bks", ""),
+                RUN_ID_OURS,
+                "",
+                int(topk_v),
             )
             for r in rows
         ]
@@ -767,18 +780,132 @@ def main(
                 a,
                 rho,
                 r.get("bks", ""),
+                RUN_ID_OURS,
+                "",
+                int(topk),
             )
         )
         return
     if cmd == "ours-large":
-        results = list(run_ours_one.starmap(_args()))
+        results = list(run_ours_one.starmap(_args(topk)))
         ok = sum(1 for x in results if x.get("ok"))
         out = REPO / "modal_exp" / "results" / f"{RUN_ID_OURS}_ours.jsonl"
         out.parent.mkdir(parents=True, exist_ok=True)
         with out.open("w") as f:
             for x in results:
                 f.write(json.dumps(x, sort_keys=True) + "\n")
-        print({"ok": ok, "failed": len(results) - ok, "local_jsonl": str(out)})
+        print(
+            {
+                "ok": ok,
+                "failed": len(results) - ok,
+                "topk": topk,
+                "local_jsonl": str(out),
+            }
+        )
+        return
+    if cmd == "topk-sweep":
+        # Probe K on R005 time-losers + current gap-losers (matched ρ=10k).
+        time_losers = [
+            "XML100000_2113_01",
+            "XML100000_3123_01",
+            "XML80000_2126_01",
+            "XML100000_2163_01",
+            "XML80000_3126_01",
+            "XML200000_3126_01",
+            "XML100000_2126_01",
+            "XML100000_2121_01",
+            "XML100000_2125_01",
+            "XML100000_2133_01",
+            "XML100000_2123_01",
+            "Molise",
+            "Flanders1",
+            "Basilicata",
+            "Umbria",
+            "Piemonte",
+        ]
+        gap_losers = [
+            "Sardegna",
+            "Friuli-Venezia-Giulia",
+            "Lazio",
+            "Molise",
+            "Basilicata",
+            "Piemonte",
+        ]
+        # Plus a few BKS wins to guard gap regression.
+        gap_guards = [
+            "Ghent2",
+            "Flanders2",
+            "Brussels2",
+            "Campania",
+            "Liguria",
+            "Puglia",
+            "Lombardia",
+            "Toscana",
+            "Emilia-Romagna",
+            "Abruzzo",
+            "Veneto",
+            "Marche",
+        ]
+        targets = list(dict.fromkeys(time_losers + gap_losers + gap_guards))
+        ks = (1, 2, 3, 4)
+        jobs = []
+        for k in ks:
+            for name in targets:
+                r = by_name.get(name)
+                if not r:
+                    continue
+                jobs.append(
+                    (
+                        r["instance"],
+                        r["path"],
+                        float(r["alpha_bpmds"] or 0),
+                        rho,
+                        r.get("bks", ""),
+                        "R006sweep",
+                        f"topk{k}",
+                        int(k),
+                    )
+                )
+        print({"topk_sweep_jobs": len(jobs), "targets": len(targets), "ks": list(ks)})
+        results = list(run_ours_one.starmap(jobs))
+        out = REPO / "modal_exp" / "results" / "R006_topk_sweep.jsonl"
+        out.parent.mkdir(parents=True, exist_ok=True)
+        with out.open("w") as f:
+            for x in results:
+                f.write(json.dumps(x, sort_keys=True) + "\n")
+
+        summary = []
+        for k in ks:
+            subset = [x for x in results if x.get("ok") and int(x.get("topk", -1)) == k]
+            time_wins = 0
+            time_n = 0
+            gap_wins = 0
+            gap_n = 0
+            for x in subset:
+                row = by_name.get(x["instance"]) or {}
+                if row.get("bpmds_time_s") and x.get("ours_time_s") is not None:
+                    time_n += 1
+                    if float(x["ours_time_s"]) <= float(row["bpmds_time_s"]) + 1e-9:
+                        time_wins += 1
+                if (
+                    row.get("bks")
+                    and row.get("bpmds_gap_pct")
+                    and x.get("ours_gap_pct") is not None
+                ):
+                    gap_n += 1
+                    if float(x["ours_gap_pct"]) <= float(row["bpmds_gap_pct"]) + 1e-9:
+                        gap_wins += 1
+            summary.append(
+                {
+                    "topk": k,
+                    "ok": len(subset),
+                    "time_wins": f"{time_wins}/{time_n}",
+                    "gap_wins": f"{gap_wins}/{gap_n}",
+                }
+            )
+        summary_path = REPO / "modal_exp" / "results" / "R006_topk_sweep_summary.json"
+        summary_path.write_text(json.dumps({"summary": summary, "targets": targets}, indent=2))
+        print({"local_jsonl": str(out), "summary": summary, "summary_json": str(summary_path)})
         return
     if cmd in ("phase-b", "phase-b2", "phase-b3", "phase-b4"):
         if cmd == "phase-b":
@@ -891,6 +1018,7 @@ def main(
         print({"ok": ok, "failed": len(results) - ok, "local_jsonl": str(out)})
         return
     raise SystemExit(
-        "cmd: list-large | gpu-ready | ours-one | ours-large | phase-b | phase-b2 | "
-        "phase-b3 | phase-b4 | harvest | bpmds-one | bpmds-large | harvest-bpmds"
+        "cmd: list-large | gpu-ready | ours-one | ours-large | topk-sweep | "
+        "phase-b | phase-b2 | phase-b3 | phase-b4 | harvest | "
+        "bpmds-one | bpmds-large | harvest-bpmds"
     )

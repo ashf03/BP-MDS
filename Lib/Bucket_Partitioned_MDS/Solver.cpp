@@ -470,8 +470,9 @@ namespace Bucket_Partitioned_MDS
 
     Solver::Solver(
         const double _alpha, 
-        const int _rho) 
-        : alpha(_alpha), rho(_rho) 
+        const int _rho,
+        const int _topk) 
+        : alpha(_alpha), rho(_rho), topk(_topk) 
     {
     }
 
@@ -511,6 +512,7 @@ namespace Bucket_Partitioned_MDS
                   << " avg_bucket_size=" << (nonempty ? (double)sum_bucket / nonempty : 0.0)
                   << " threads=" << omp_get_max_threads()
                   << " rho=" << rho
+                  << " topk=" << topk
                   << "\n" << std::flush;
 
         const uint32_t seed_base = 0x9e3779b9u;
@@ -529,14 +531,15 @@ namespace Bucket_Partitioned_MDS
 
             // Keep top-K DFS tours, then pick best *after* 2-opt/TSP polish.
             // Pre-LS DFS cost ≠ post-LS cost; ranking only on DFS left gap on the table.
-            constexpr int kTopK = 12;
+            // K=1 ≡ original single-winner path; larger K improves gap but loosens DFS prune.
+            const int kTopK = std::max(1, this->topk);
             struct DfsCand
             {
                 distance_t dfs_cost = DBL_MAX;
                 std::vector<std::vector<node_t>> routes;
             };
-            std::vector<DfsCand> topk;
-            topk.reserve(static_cast<size_t>(kTopK));
+            std::vector<DfsCand> topk_pool;
+            topk_pool.reserve(static_cast<size_t>(kTopK));
 
             std::vector<std::vector<node_t>> mst_adj(bucket.size());
             construct_mst(cvrp, bucket, mst_adj);
@@ -570,7 +573,9 @@ namespace Bucket_Partitioned_MDS
             {
                 std::vector<DfsCand> local_topk;
                 local_topk.reserve(static_cast<size_t>(kTopK));
-                distance_t local_bound = DBL_MAX;
+                // Tight DFS prune on *best* so far (as in K=1). Admission to the
+                // polish pool still uses worst-of-K; do not loosen get_routes abort.
+                distance_t dfs_prune = DBL_MAX;
 
                 #pragma omp for nowait schedule(static)
                 for (int trial = 0; trial < rho; ++trial)
@@ -580,27 +585,30 @@ namespace Bucket_Partitioned_MDS
                     const unsigned seed =
                         seed_base ^ (static_cast<unsigned>(bucket_id) * 0x85ebca6bu)
                                    ^ (static_cast<unsigned>(trial) * 0xc2b2ae35u);
-                    // Bound = worst DFS in pool once full; else no prune (fill top-K).
-                    get_routes(cvrp, mst_adj, bucket, routes, cost, local_bound, seed);
+                    get_routes(cvrp, mst_adj, bucket, routes, cost, dfs_prune, seed);
                     if (!(cost < DBL_MAX))
                     {
                         continue;
                     }
-                    if (static_cast<int>(local_topk.size()) < kTopK || cost < local_bound)
+                    if (cost < dfs_prune)
+                    {
+                        dfs_prune = cost;
+                    }
+                    distance_t admit = DBL_MAX;
+                    if (static_cast<int>(local_topk.size()) >= kTopK)
+                    {
+                        admit = 0.0;
+                        for (const auto& cand : local_topk)
+                        {
+                            if (cand.dfs_cost > admit)
+                            {
+                                admit = cand.dfs_cost;
+                            }
+                        }
+                    }
+                    if (static_cast<int>(local_topk.size()) < kTopK || cost < admit)
                     {
                         consider(local_topk, cost, routes);
-                        if (static_cast<int>(local_topk.size()) >= kTopK)
-                        {
-                            distance_t worst = 0.0;
-                            for (const auto& cand : local_topk)
-                            {
-                                if (cand.dfs_cost > worst)
-                                {
-                                    worst = cand.dfs_cost;
-                                }
-                            }
-                            local_bound = worst;
-                        }
                     }
                 }
 
@@ -608,14 +616,14 @@ namespace Bucket_Partitioned_MDS
                 {
                     for (auto& cand : local_topk)
                     {
-                        consider(topk, cand.dfs_cost, cand.routes);
+                        consider(topk_pool, cand.dfs_cost, cand.routes);
                     }
                 }
             }
 
             std::vector<std::vector<node_t>> low_cost_routes;
             distance_t low_cost = DBL_MAX;
-            for (auto& cand : topk)
+            for (auto& cand : topk_pool)
             {
                 if (cand.routes.empty())
                 {

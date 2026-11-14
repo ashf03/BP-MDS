@@ -14,6 +14,7 @@ std::string Command_Line_Args::get_usage()
     usage << "Allowed arguments:\n"
           << "  --alpha   : Angle to partition the 2-D plane\n"
           << "  --rho     : Number of different DFS orderings for exploitation\n"
+          << "  --topk    : DFS candidates to polish with 2-opt (default 3)\n"
           << "  --input   : Input file path\n"
           << " --output   : Output file path\n\n"
 
@@ -21,10 +22,11 @@ std::string Command_Line_Args::get_usage()
           << "  alpha and rho\n\n"
 
           << "Optional arguments:\n"
-          << "  input and output\n\n"
+          << "  topk, input and output\n\n"
 
           << "Acceptable usage examples:\n"
           << "  ./executable --alpha=<alpha> --rho=<rho>\n"
+          << "  ./executable --alpha=<alpha> --rho=<rho> --topk=<k>\n"
           << "  ./executable --alpha=<alpha> --rho=<rho> --output=<output>\n"
           << "  ./executable --alpha=<alpha> --rho=<rho> --input=<input>\n"
           << "  ./executable --alpha=<alpha> --rho=<rho> --input=<input> --output=<output>\n";
@@ -150,10 +152,35 @@ void Command_Line_Args::set_output_stream(int argc, char** argv)
     }
 }
 
+void Command_Line_Args::set_topk(int argc, char** argv)
+{
+    this->topk = 2;  // default: 127/127 time vs BP-MDS; raise for gap at cost of time
+    bool topk_passed = false;
+
+    for (int i = 1; i < argc; i++)
+    {
+        std::string arg = argv[i];
+        if (arg.rfind("--topk=", 0) == 0)
+        {
+            if (topk_passed)
+            {
+                HANDLE_ERROR("topk must be passed at most once\n" + this->get_usage(), true);
+            }
+            topk_passed = true;
+            this->topk = std::stoi(arg.substr(7));
+            if (this->topk <= 0)
+            {
+                HANDLE_ERROR("topk must be positive", true);
+            }
+        }
+    }
+}
+
 Command_Line_Args::Command_Line_Args(int argc, char** argv) 
 {
     this->set_alpha(argc, argv);
     this->set_rho(argc, argv);
+    this->set_topk(argc, argv);
 
     this->set_input_stream(argc, argv);
     this->set_output_stream(argc, argv);
@@ -185,4 +212,9 @@ int Command_Line_Args::get_rho() const
     
 
     return rho; 
+}
+
+int Command_Line_Args::get_topk() const
+{
+    return topk;
 }

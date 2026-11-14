@@ -17,11 +17,13 @@ private:
     std::ostream* output_stream;
     double alpha;
     int rho;
+    int topk;
 
     void set_input_stream(int, char**);
     void set_output_stream(int, char**);
     void set_alpha(int, char**);
     void set_rho(int, char**);
+    void set_topk(int, char**);
     std::string get_usage();
 public:
     Command_Line_Args(int, char**);
@@ -29,6 +31,7 @@ public:
     std::ostream& output() const;
     double get_alpha() const;
     int get_rho() const;
+    int get_topk() const;
 };
 
 #endif
