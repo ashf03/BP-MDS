@@ -21,8 +21,7 @@ RUN_ID_OURS = "R005"
 RUN_ID_BPMDS = "R002"
 RUN_ID_PHASE_B = "R004"
 UPSTREAM_SHA = "5b9e24f"
-# Pinned after top-K commit on mod/cleanup-and-speedups (updated post-commit).
-OURS_SHA = "topk12"
+OURS_SHA = "653111b"
 NOTES_OURS = (
     f"run={RUN_ID_OURS} bpmds@{UPSTREAM_SHA} ours@{OURS_SHA} cuopt@na "
     "hw=Modal-48c-256G timed=Solver::solve rho=10000 topk=12"
