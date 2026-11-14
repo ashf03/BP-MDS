@@ -20,6 +20,7 @@ dist/
 build/
 *.egg
 **/.venv/
+**/.venv-modal/
 **/venv/
 **/env/
 **/ENV/
@@ -68,3 +69,7 @@ Inputs/FILO2/
 
 # Local working plan (never push)
 /plan.md
+
+# Modal experiment artifacts
+modal_exp/results/*.log
+modal_exp/__pycache__/

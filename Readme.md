@@ -37,14 +37,15 @@ Optimize for **wall time** and **tighter gap to BKS** against both baselines. **
 |:----------|:-----|:-----|
 | **[BP-MDS](https://github.com/CodeCraftsmanSandeep/BP-MDS)** | Upstream CPU heuristic | CPU / OpenMP |
 | **ours** | This fork — faster hot path now; GPU path next | CPU → GPU |
-| **[NVIDIA cuOpt](https://www.nvidia.com/en-in/ai-data-science/products/cuopt/)** | GPU decision / routing engine | GPU |
+| **[NVIDIA cuOpt](https://github.com/NVIDIA/cuOpt)** | GPU decision / routing engine (public code) | GPU |
 
 | | |
 |:--|:--|
 | **The sheet** | [Google Sheet](https://docs.google.com/spreadsheets/d/18Z0JchFiihrfq31Alr3_XLvNnxVLcktAKo5pzkanE6s/edit?usp=sharing) |
-| Repo paste mirror | [`benchmarks/scoreboard.tsv`](benchmarks/scoreboard.tsv) |
+| Repo paste mirror | [`scoreboard.tsv`](scoreboard.tsv) |
+| Experiment log | [`log.md`](log.md) |
 
-Columns: **BKS · bpmds/ours/cuopt × (cost, gap%, time)** — all sources on one sheet.
+Columns: **BKS · bpmds/ours/cuopt × (cost, gap%, time)** — all 310 on one sheet; **compare on large sizes** (`L`/`XL`/`XXL`/`XXXL`).
 
 ---
 
@@ -165,7 +166,7 @@ Ablation binaries: `make bench-marking` (sources in `Scripts/BenchmarkingCode/`)
 | Speedups report (TeX) | [`report/report.tex`](report/report.tex) |
 | Speedups report (PDF) | [`report/report.pdf`](report/report.pdf) |
 | Pull request | [PR #7 · CodeCraftsmanSandeep/BP-MDS](https://github.com/CodeCraftsmanSandeep/BP-MDS/pull/7) |
-| NVIDIA cuOpt | [Product page](https://www.nvidia.com/en-in/ai-data-science/products/cuopt/) |
+| NVIDIA cuOpt | [github.com/NVIDIA/cuOpt](https://github.com/NVIDIA/cuOpt) |
 
 ---
 

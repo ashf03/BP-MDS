@@ -13,9 +13,10 @@
 
 ## What the sheet is
 
-Single scoreboard: **BP-MDS · ours · cuOpt** on all **310** instances (CVRPLIB 130 · FILO2 20 · Synthetic 160).
+Single scoreboard: **BP-MDS · ours · cuOpt** on all **310** instances (CVRPLIB 130 · FILO2 20 · Synthetic 160).  
+**Primary fight (prof):** large sizes only — `L` / `XL` / `XXL` / `XXXL`. cuOpt source: https://github.com/NVIDIA/cuOpt
 
-Metrics per solver: **cost · gap% · time_s**. Shared: **BKS**.
+Metrics per solver: **cost · gap% · time_s**. Shared: **BKS**. Pins/runs: root `log.md`.
 
 ```text
 gap% = 100 * (cost - BKS) / BKS
@@ -41,6 +42,24 @@ sno	size	source	set	instance	path	customers	n	q	bks	alpha_bpmds	bpmds_cost	bpmds
 1. Open `scoreboard.tsv` → select all → copy.
 2. Open the Sheet URL → click A1 → paste.
 3. Data → Create a filter (optional).
+
+## Recording (Modal R001+)
+
+Timed region = **`Execution time for solving (sec)`** inside each `.sol` (not wall clock around the process).
+
+After a Modal batch:
+
+```bash
+modal volume get bp-mds-data /results/R001_ours_patch.csv modal_exp/results/R001_ours_patch.csv
+# or harvest if patch incomplete:
+# modal run modal_exp/app.py --cmd harvest
+# modal volume get bp-mds-data /results/R001_ours_patch.csv modal_exp/results/R001_ours_patch.csv
+
+python modal_exp/apply_results.py --patch-csv modal_exp/results/R001_ours_patch.csv
+# then full-replace the Google Sheet tab from scoreboard.tsv
+```
+
+Fill `ours_*` from ours runs; `bpmds_time_s` only from upstream binary on the **same** Modal CPU shape; `cuopt_*` from H100 runs. Always cite `log.md` run id in `notes`.
 
 ## Agent: update `scoreboard.tsv` after a run
 

@@ -527,16 +527,50 @@ namespace Bucket_Partitioned_MDS
                 continue;
             }
 
-            std::vector<std::vector<node_t>> low_cost_routes;
-            distance_t low_cost = DBL_MAX;
+            // Keep top-K DFS tours, then pick best *after* 2-opt/TSP polish.
+            // Pre-LS DFS cost ≠ post-LS cost; ranking only on DFS left gap on the table.
+            constexpr int kTopK = 12;
+            struct DfsCand
+            {
+                distance_t dfs_cost = DBL_MAX;
+                std::vector<std::vector<node_t>> routes;
+            };
+            std::vector<DfsCand> topk;
+            topk.reserve(static_cast<size_t>(kTopK));
 
             std::vector<std::vector<node_t>> mst_adj(bucket.size());
             construct_mst(cvrp, bucket, mst_adj);
 
+            auto consider = [&](std::vector<DfsCand>& pool, distance_t c,
+                                std::vector<std::vector<node_t>>& routes)
+            {
+                if (!(c < DBL_MAX))
+                {
+                    return;
+                }
+                if (static_cast<int>(pool.size()) < kTopK)
+                {
+                    pool.push_back(DfsCand{c, std::move(routes)});
+                    return;
+                }
+                auto worst = std::max_element(
+                    pool.begin(), pool.end(),
+                    [](const DfsCand& a, const DfsCand& b)
+                    {
+                        return a.dfs_cost < b.dfs_cost;
+                    });
+                if (c < worst->dfs_cost)
+                {
+                    worst->dfs_cost = c;
+                    worst->routes = std::move(routes);
+                }
+            };
+
             #pragma omp parallel
             {
-                std::vector<std::vector<node_t>> local_routes;
-                distance_t local_cost = DBL_MAX;
+                std::vector<DfsCand> local_topk;
+                local_topk.reserve(static_cast<size_t>(kTopK));
+                distance_t local_bound = DBL_MAX;
 
                 #pragma omp for nowait schedule(static)
                 for (int trial = 0; trial < rho; ++trial)
@@ -546,27 +580,58 @@ namespace Bucket_Partitioned_MDS
                     const unsigned seed =
                         seed_base ^ (static_cast<unsigned>(bucket_id) * 0x85ebca6bu)
                                    ^ (static_cast<unsigned>(trial) * 0xc2b2ae35u);
-                    get_routes(cvrp, mst_adj, bucket, routes, cost, local_cost, seed);
-                    if (cost < local_cost)
+                    // Bound = worst DFS in pool once full; else no prune (fill top-K).
+                    get_routes(cvrp, mst_adj, bucket, routes, cost, local_bound, seed);
+                    if (!(cost < DBL_MAX))
                     {
-                        local_cost = cost;
-                        local_routes.swap(routes);
+                        continue;
+                    }
+                    if (static_cast<int>(local_topk.size()) < kTopK || cost < local_bound)
+                    {
+                        consider(local_topk, cost, routes);
+                        if (static_cast<int>(local_topk.size()) >= kTopK)
+                        {
+                            distance_t worst = 0.0;
+                            for (const auto& cand : local_topk)
+                            {
+                                if (cand.dfs_cost > worst)
+                                {
+                                    worst = cand.dfs_cost;
+                                }
+                            }
+                            local_bound = worst;
+                        }
                     }
                 }
 
                 #pragma omp critical
                 {
-                    if (local_cost < low_cost)
+                    for (auto& cand : local_topk)
                     {
-                        low_cost = local_cost;
-                        low_cost_routes.swap(local_routes);
+                        consider(topk, cand.dfs_cost, cand.routes);
                     }
+                }
+            }
+
+            std::vector<std::vector<node_t>> low_cost_routes;
+            distance_t low_cost = DBL_MAX;
+            for (auto& cand : topk)
+            {
+                if (cand.routes.empty())
+                {
+                    continue;
+                }
+                distance_t polished = cand.dfs_cost;
+                process_routes(cvrp, cand.routes, polished);
+                if (polished < low_cost)
+                {
+                    low_cost = polished;
+                    low_cost_routes = std::move(cand.routes);
                 }
             }
 
             if (!low_cost_routes.empty())
             {
-                process_routes(cvrp, low_cost_routes, low_cost);
                 #pragma omp critical
                 {
                     for (auto& route : low_cost_routes)
