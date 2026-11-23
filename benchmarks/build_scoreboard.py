@@ -40,6 +40,12 @@ COLS = [
     "ours_gpu_cost",
     "ours_gpu_gap_pct",
     "ours_gpu_time_s",
+    "filo2_cost",
+    "filo2_gap_pct",
+    "filo2_time_s",
+    "filo2x_cost",
+    "filo2x_gap_pct",
+    "filo2x_time_s",
     "notes",
 ]
 
@@ -100,6 +106,15 @@ def main() -> None:
                     "cuopt_cost": "",
                     "cuopt_gap_pct": "",
                     "cuopt_time_s": "",
+                    "ours_gpu_cost": "",
+                    "ours_gpu_gap_pct": "",
+                    "ours_gpu_time_s": "",
+                    "filo2_cost": "",
+                    "filo2_gap_pct": "",
+                    "filo2_time_s": "",
+                    "filo2x_cost": "",
+                    "filo2x_gap_pct": "",
+                    "filo2x_time_s": "",
                     "notes": "",
                 }
             )

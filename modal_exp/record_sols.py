@@ -27,12 +27,16 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 from record import (  # noqa: E402
     NOTES_BPMDS,
     NOTES_CUOPT,
+    NOTES_FILO2,
+    NOTES_FILO2X,
     NOTES_OURS,
     NOTES_OURS_CUDA,
     NOTES_OURS_GPU,
     SCOREBOARD_PATHS,
     apply_bpmds_results,
     apply_cuopt_results,
+    apply_filo2_results,
+    apply_filo2x_results,
     apply_ours_gpu_results,
     apply_ours_results,
     gap_pct,
@@ -44,13 +48,40 @@ from record import (  # noqa: E402
 # Phase-B / tagged sols: Friuli-Venezia-Giulia_a14.75_r75000.sol
 _TAG_RE = re.compile(r"_a[0-9]+(?:\.[0-9]+)?_r[0-9]+$", re.I)
 
-SOLVERS = ("ours", "bpmds", "cuopt", "ours_gpu")
+SOLVERS = ("ours", "bpmds", "cuopt", "ours_gpu", "filo2", "filo2x")
 
 DEFAULT_NOTES = {
     "ours": NOTES_OURS,
     "bpmds": NOTES_BPMDS,
     "cuopt": NOTES_CUOPT,
     "ours_gpu": NOTES_OURS_GPU,
+    "filo2": NOTES_FILO2,
+    "filo2x": NOTES_FILO2X,
+}
+
+_COST_KEY = {
+    "ours": "ours_cost",
+    "bpmds": "bpmds_cost",
+    "cuopt": "cuopt_cost",
+    "ours_gpu": "ours_gpu_cost",
+    "filo2": "filo2_cost",
+    "filo2x": "filo2x_cost",
+}
+_TIME_KEY = {
+    "ours": "ours_time_s",
+    "bpmds": "bpmds_time_s",
+    "cuopt": "cuopt_time_s",
+    "ours_gpu": "ours_gpu_time_s",
+    "filo2": "filo2_time_s",
+    "filo2x": "filo2x_time_s",
+}
+_GAP_KEY = {
+    "ours": "ours_gap_pct",
+    "bpmds": "bpmds_gap_pct",
+    "cuopt": "cuopt_gap_pct",
+    "ours_gpu": "ours_gpu_gap_pct",
+    "filo2": "filo2_gap_pct",
+    "filo2x": "filo2x_gap_pct",
 }
 
 
@@ -93,18 +124,9 @@ def collect_sols(
 
 
 def collect_jsonl(path: Path, solver: str) -> list[dict]:
-    cost_key = {
-        "ours": "ours_cost",
-        "bpmds": "bpmds_cost",
-        "cuopt": "cuopt_cost",
-        "ours_gpu": "ours_gpu_cost",
-    }[solver]
-    time_key = {
-        "ours": "ours_time_s",
-        "bpmds": "bpmds_time_s",
-        "cuopt": "cuopt_time_s",
-        "ours_gpu": "ours_gpu_time_s",
-    }[solver]
+    cost_key = _COST_KEY[solver]
+    time_key = _TIME_KEY[solver]
+    gap_key = _GAP_KEY[solver]
     rows: list[dict] = []
     for r in results_from_jsonl(path):
         if solver in {"cuopt", "ours_gpu"}:
@@ -114,6 +136,18 @@ def collect_jsonl(path: Path, solver: str) -> list[dict]:
             if "time_s" not in r and time_key in r:
                 r = {**r, "time_s": r.get(time_key)}
             rows.append(r)
+            continue
+        if solver in {"filo2", "filo2x"}:
+            rows.append(
+                {
+                    "instance": r.get("instance"),
+                    "cost": r.get(cost_key, r.get("cost")),
+                    "gap_pct": r.get(gap_key, r.get("gap_pct")),
+                    "time_s": r.get(time_key, r.get("time_s", r.get("solve_time_s"))),
+                    "ok": r.get("ok", True),
+                    "notes": r.get("notes"),
+                }
+            )
             continue
         rows.append(
             {
@@ -129,18 +163,9 @@ def collect_jsonl(path: Path, solver: str) -> list[dict]:
 
 
 def collect_patch_csv(path: Path, solver: str) -> list[dict]:
-    cost_key = {
-        "ours": "ours_cost",
-        "bpmds": "bpmds_cost",
-        "cuopt": "cuopt_cost",
-        "ours_gpu": "ours_gpu_cost",
-    }[solver]
-    time_key = {
-        "ours": "ours_time_s",
-        "bpmds": "bpmds_time_s",
-        "cuopt": "cuopt_time_s",
-        "ours_gpu": "ours_gpu_time_s",
-    }[solver]
+    cost_key = _COST_KEY[solver]
+    time_key = _TIME_KEY[solver]
+    gap_key = _GAP_KEY[solver]
     rows: list[dict] = []
     with path.open(newline="") as f:
         for r in csv.DictReader(f):
@@ -172,6 +197,19 @@ def collect_patch_csv(path: Path, solver: str) -> list[dict]:
                         in {"1", "true", "yes", ""},
                         "use_cuda": str(r.get("use_cuda", "")).lower()
                         in {"1", "true", "yes"},
+                    }
+                )
+            elif solver in {"filo2", "filo2x"}:
+                c = r.get(cost_key) or r.get("cost")
+                g = r.get(gap_key) or r.get("gap_pct")
+                t = r.get(time_key) or r.get("time_s")
+                rows.append(
+                    {
+                        "instance": r["instance"],
+                        "cost": float(c) if c not in (None, "") else None,
+                        "gap_pct": float(g) if g not in (None, "") else None,
+                        "time_s": float(t) if t not in (None, "") else None,
+                        "ok": True,
                     }
                 )
             else:
@@ -207,16 +245,8 @@ def filter_both_win(
     by_sb = {r["instance"]: r for r in sb_rows}
     kept: list[dict] = []
     dropped: list[dict] = []
-    gap_col = {
-        "bpmds": "bpmds_gap_pct",
-        "cuopt": "cuopt_gap_pct",
-        "ours": "ours_gap_pct",
-    }[vs]
-    time_col = {
-        "bpmds": "bpmds_time_s",
-        "cuopt": "cuopt_time_s",
-        "ours": "ours_time_s",
-    }[vs]
+    gap_col = _GAP_KEY[vs]
+    time_col = _TIME_KEY[vs]
 
     for r in results:
         inst = r.get("instance")
@@ -326,6 +356,20 @@ def apply(
                 return apply_cuopt_results(results, mark_skipped=False)
             finally:
                 rec.NOTES_CUOPT = old
+        if solver == "filo2":
+            old = rec.NOTES_FILO2
+            rec.NOTES_FILO2 = notes
+            try:
+                return apply_filo2_results(results)
+            finally:
+                rec.NOTES_FILO2 = old
+        if solver == "filo2x":
+            old = rec.NOTES_FILO2X
+            rec.NOTES_FILO2X = notes
+            try:
+                return apply_filo2x_results(results)
+            finally:
+                rec.NOTES_FILO2X = old
 
     if solver == "ours":
         return apply_ours_results(results)
@@ -338,6 +382,10 @@ def apply(
             if notes and "cuda" in notes.lower():
                 r["use_cuda"] = True
         return apply_ours_gpu_results(results)
+    if solver == "filo2":
+        return apply_filo2_results(results)
+    if solver == "filo2x":
+        return apply_filo2x_results(results)
     return apply_cuopt_results(results, mark_skipped=False)
 
 
@@ -363,7 +411,7 @@ def main() -> None:
     )
     ap.add_argument(
         "--both-win-vs",
-        choices=("bpmds", "cuopt", "ours"),
+        choices=("bpmds", "cuopt", "ours", "filo2", "filo2x"),
         help="Only apply rows that beat contender on gap and time",
     )
     ap.add_argument(

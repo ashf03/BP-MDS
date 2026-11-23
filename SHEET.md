@@ -13,8 +13,9 @@
 
 ## What the sheet is
 
-Single scoreboard: **BP-MDS · ours · cuOpt** on all **310** instances (CVRPLIB 130 · FILO2 20 · Synthetic 160).  
-**Primary fight (prof):** large sizes only — `L` / `XL` / `XXL` / `XXXL`. cuOpt source: https://github.com/NVIDIA/cuOpt
+Single scoreboard: **BP-MDS · ours · cuOpt · FILO2 · FILO2x** on all **310** instances (CVRPLIB 130 · FILO2 20 · Synthetic 160).  
+**Primary fight (prof):** large sizes only — `L` / `XL` / `XXL` / `XXXL`. cuOpt source: https://github.com/NVIDIA/cuOpt  
+FILO2 / FILO2x cols are filled on the **20 FILO2 / I-region** rows (paper numbers and/or own runs).
 
 Metrics per solver: **cost · gap% · time_s**. Shared: **BKS**. Pins/runs: root `log.md`.
 
@@ -25,7 +26,7 @@ gap% = 100 * (cost - BKS) / BKS
 ## Header (row 1) — do not rename casually
 
 ```text
-sno	size	source	set	instance	path	customers	n	q	bks	alpha_bpmds	bpmds_cost	bpmds_gap_pct	bpmds_time_s	ours_cost	ours_gap_pct	ours_time_s	cuopt_cost	cuopt_gap_pct	cuopt_time_s	ours_gpu_cost	ours_gpu_gap_pct	ours_gpu_time_s	notes
+sno	size	source	set	instance	path	customers	n	q	bks	alpha_bpmds	bpmds_cost	bpmds_gap_pct	bpmds_time_s	ours_cost	ours_gap_pct	ours_time_s	cuopt_cost	cuopt_gap_pct	cuopt_time_s	ours_gpu_cost	ours_gpu_gap_pct	ours_gpu_time_s	filo2_cost	filo2_gap_pct	filo2_time_s	filo2x_cost	filo2x_gap_pct	filo2x_time_s	notes
 ```
 
 ## Agent: update Google Sheet from `scoreboard.tsv`
@@ -61,12 +62,16 @@ python modal_exp/record_sols.py --solver ours --jsonl modal_exp/results/R011_our
 # Modal patch / jsonl (same as before)
 python modal_exp/record_sols.py --solver ours --patch-csv modal_exp/results/R001_ours_patch.csv
 python modal_exp/record_sols.py --solver ours_gpu --jsonl modal_exp/results/R010_ours_gpu_cuda.jsonl
+
+# FILO2 / FILO2x paper (or run) numbers — jsonl/patch with cost and/or gap_pct + time_s
+python modal_exp/record_sols.py --solver filo2x --jsonl modal_exp/results/R012_filo2x.jsonl
+python modal_exp/record_sols.py --solver filo2 --patch-csv modal_exp/results/filo2_paper.csv
 # then paste scoreboard.tsv into the Google Sheet
 ```
 
 `apply_results.py` is a thin alias of `record_sols.py`.
 
-Fill `ours_*` from ours runs; `bpmds_time_s` only from upstream binary on the **same** Modal CPU shape; `cuopt_*` / `ours_gpu_*` from H100 runs. Always cite `log.md` run id in `notes`.
+Fill `ours_*` from ours runs; `bpmds_time_s` only from upstream binary on the **same** Modal CPU shape; `cuopt_*` / `ours_gpu_*` from H100 runs; `filo2_*` / `filo2x_*` from published tables or own runs (cite source in `notes`). Always cite `log.md` run id in `notes`.
 
 ## Agent: update `scoreboard.tsv` after a run
 
@@ -78,6 +83,8 @@ When given new results, fill the matching `instance` row:
 | `ours_cost` `ours_gap_pct` `ours_time_s` | This fork (CPU lane, Modal 48c) |
 | `cuopt_cost` `cuopt_gap_pct` `cuopt_time_s` | NVIDIA cuOpt (H100; dense N×N) |
 | `ours_gpu_cost` `ours_gpu_gap_pct` `ours_gpu_time_s` | Ours GPU lane — bucketed Euclidean on H100 host (no dense N×N) |
+| `filo2_cost` `filo2_gap_pct` `filo2_time_s` | Sequential FILO2 (Accorsi & Vigo; paper or own run) |
+| `filo2x_cost` `filo2x_gap_pct` `filo2x_time_s` | Parallel FILO2x (arXiv:2511.19445; paper or own run) |
 | `notes` | cite `log.md` run id, e.g. `run=R001 bpmds@… ours@… cuopt@… hw=… timed=…` |
 
 Pins, hardware, and timed region live in root **`log.md`** (append a run block every batch).  

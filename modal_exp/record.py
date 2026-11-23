@@ -31,7 +31,25 @@ NOTES_OURS_CUDA = (
     "algo=bucketed-euclidean+cuda-prim-2opt omp=48 "
     "prim_min=512 twopt_min=128 topk=2"
 )
+NOTES_FILO2 = (
+    "filo2@paper Accorsi&Vigo 2024 "
+    "src=published-table timed=paper-wall avg_of_runs"
+)
+NOTES_FILO2X = (
+    "filo2x@paper arXiv:2511.19445 "
+    "src=published-table timed=paper-wall avg_of_runs"
+)
 NOTES = NOTES_OURS  # default for ours apply
+
+# Contender column triples (kept before notes on the scoreboard).
+SOLVER_METRIC_COLS = {
+    "bpmds": ("bpmds_cost", "bpmds_gap_pct", "bpmds_time_s"),
+    "ours": ("ours_cost", "ours_gap_pct", "ours_time_s"),
+    "cuopt": ("cuopt_cost", "cuopt_gap_pct", "cuopt_time_s"),
+    "ours_gpu": ("ours_gpu_cost", "ours_gpu_gap_pct", "ours_gpu_time_s"),
+    "filo2": ("filo2_cost", "filo2_gap_pct", "filo2_time_s"),
+    "filo2x": ("filo2x_cost", "filo2x_gap_pct", "filo2x_time_s"),
+}
 
 COST_RE = re.compile(r"^Cost:\s*([0-9.eE+-]+)\s*$", re.I | re.M)
 TIME_RE = re.compile(
@@ -75,21 +93,107 @@ def gap_pct(cost: float | None, bks: str) -> str:
 
 def _write_pair(csv_path: Path, fieldnames: list[str], rows: list[dict]) -> None:
     with csv_path.open("w", newline="") as f:
-        w = csv.DictWriter(f, fieldnames=fieldnames)
+        w = csv.DictWriter(f, fieldnames=fieldnames, extrasaction="ignore")
         w.writeheader()
         w.writerows(rows)
     tsv_path = csv_path.with_suffix(".tsv")
     with tsv_path.open("w", newline="") as f:
-        w = csv.DictWriter(f, fieldnames=fieldnames, delimiter="\t")
+        w = csv.DictWriter(
+            f, fieldnames=fieldnames, delimiter="\t", extrasaction="ignore"
+        )
         w.writeheader()
         w.writerows(rows)
+
+
+def _ensure_cols(fieldnames: list[str], rows: list[dict], cols: list[str]) -> list[str]:
+    """Insert missing scoreboard cols just before notes; default empty on rows."""
+    missing = [c for c in cols if c not in fieldnames]
+    if not missing:
+        for row in rows:
+            for c in cols:
+                row.setdefault(c, "")
+        return fieldnames
+    fn = list(fieldnames)
+    if "notes" in fn:
+        i = fn.index("notes")
+        fn[i:i] = missing
+    else:
+        fn.extend(missing)
+    for row in rows:
+        for c in missing:
+            row.setdefault(c, "")
+    return fn
 
 
 def _load_rows() -> tuple[list[str], list[dict]]:
     root = REPO / "scoreboard.csv"
     with root.open(newline="") as f:
         reader = csv.DictReader(f)
-        return list(reader.fieldnames or []), list(reader)
+        fieldnames = list(reader.fieldnames or [])
+        rows = list(reader)
+    # Keep schema current even if an older TSV is present.
+    want = [c for triple in SOLVER_METRIC_COLS.values() for c in triple]
+    fieldnames = _ensure_cols(fieldnames, rows, want)
+    return fieldnames, rows
+
+
+def _cost_from_gap(bks: str, gap: float) -> float | None:
+    try:
+        b = float(bks)
+    except (TypeError, ValueError):
+        return None
+    return b * (1.0 + gap / 100.0)
+
+
+def apply_solver_metrics(
+    results: list[dict],
+    *,
+    prefix: str,
+    notes: str,
+    notes_tag: str | None = None,
+) -> int:
+    """Fill `{prefix}_cost` / `_gap_pct` / `_time_s` from result dicts.
+
+    Each hit may supply cost and/or gap_pct (gap alone → cost from BKS) and time_s.
+    Accepts bare keys (`cost`, `gap_pct`, `time_s`) or prefixed ones.
+    """
+    cost_k, gap_k, time_k = SOLVER_METRIC_COLS[prefix]
+    by_inst = {r["instance"]: r for r in results if r.get("instance")}
+    fieldnames, rows = _load_rows()
+    fieldnames = _ensure_cols(fieldnames, rows, [cost_k, gap_k, time_k])
+    tag = notes_tag or notes.split()[0]
+    updated = 0
+    for row in rows:
+        hit = by_inst.get(row["instance"])
+        if not hit:
+            continue
+        cost = hit.get(cost_k, hit.get("cost"))
+        gap = hit.get(gap_k, hit.get("gap_pct"))
+        time_s = hit.get(time_k, hit.get("time_s"))
+        if (cost is None or cost == "") and gap not in (None, ""):
+            cost = _cost_from_gap(row.get("bks", ""), float(gap))
+        if cost is not None and cost != "":
+            row[cost_k] = f"{float(cost):.6f}"
+            row[gap_k] = gap_pct(float(cost), row.get("bks", ""))
+        elif gap not in (None, ""):
+            row[gap_k] = f"{float(gap):.6f}"
+        if time_s is not None and time_s != "":
+            row[time_k] = f"{float(time_s):.6f}"
+        prev = row.get("notes") or ""
+        if tag not in prev:
+            row["notes"] = (prev + " | " + notes).strip(" |")
+        updated += 1
+    for path in SCOREBOARD_PATHS:
+        _write_pair(path, fieldnames, rows)
+    return updated
+
+
+def apply_filo2_results(results: list[dict]) -> int:
+    return apply_solver_metrics(results, prefix="filo2", notes=NOTES_FILO2)
+
+
+def apply_filo2x_results(results: list[dict]) -> int:
+    return apply_solver_metrics(results, prefix="filo2x", notes=NOTES_FILO2X)
 
 
 def apply_ours_results(results: list[dict]) -> int:
@@ -144,21 +248,11 @@ def apply_ours_gpu_results(results: list[dict]) -> int:
     """Fill ours_gpu_* from R009 H100 bucketed runs (does not touch ours_* CPU)."""
     by_inst = {r["instance"]: r for r in results if r.get("instance")}
     fieldnames, rows = _load_rows()
-    for col in ("ours_gpu_cost", "ours_gpu_gap_pct", "ours_gpu_time_s"):
-        if col not in fieldnames:
-            # insert before notes
-            if "notes" in fieldnames:
-                i = fieldnames.index("notes")
-                fieldnames[i:i] = [
-                    "ours_gpu_cost",
-                    "ours_gpu_gap_pct",
-                    "ours_gpu_time_s",
-                ]
-            else:
-                fieldnames.extend(
-                    ["ours_gpu_cost", "ours_gpu_gap_pct", "ours_gpu_time_s"]
-                )
-            break
+    fieldnames = _ensure_cols(
+        fieldnames,
+        rows,
+        ["ours_gpu_cost", "ours_gpu_gap_pct", "ours_gpu_time_s"],
+    )
     updated = 0
     for row in rows:
         hit = by_inst.get(row["instance"])
