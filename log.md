@@ -36,6 +36,20 @@ run=R00X bpmds@<sha> ours@<sha> cuopt@<tag|na> hw=<spec> timed=<region>
 
 Newest first. Add a block per batch.
 
+### R012 — FILO2 / FILO2x paper numbers on I instances — COMPLETE
+
+- **date:** 2026-11-23
+- **what:** fill `filo2_*` + `filo2x_*` on all **20** FILO2/I rows from published tables (no Modal FILO2x run)
+- **FILO2:** Accorsi & Vigo 2024 · [arXiv:2306.14205](https://arxiv.org/abs/2306.14205) **Table 4** · **standard** (not long) · Avg gap + wall time · avg of 10 runs
+- **FILO2x:** Accorsi et al. · [arXiv:2511.19445](https://arxiv.org/abs/2511.19445) **Table 21** gap @ **x=10** standard · **Table 22** speedup @ x=10 → `filo2x_time_s = filo2_time_s / speedup` (paper has no per-instance absolute FILO2x times)
+- **cost:** derived `BKS * (1 + gap/100)` via `record_sols`
+- **hw (paper):** FILO2 as in COR 2024 paper · FILO2x on Intel Xeon Gold 6254 / 384 GB · **ours** still Modal 48c/256G — times **not** same-box; gap-to-BKS is the fair quality axis
+- **artifacts:** `modal_exp/results/R012_filo2_paper.csv` · `R012_filo2x_paper.csv`
+- **scoreboard:** 20/20 `filo2_*` + `filo2x_*` filled
+- **quick ours vs FILO2x (indicative):** gap≤ **3/20** · time≤ **16/20** · both-win **0/20** (we are much faster on most, but FILO2x gaps are much tighter except Sardegna/Puglia/Sicilia)
+- **notes paste:** see R012 stamps on those rows
+- **next:** paste `scoreboard.tsv` · draft reply to Rupesh
+
 ### Tooling — record_sols.py (`.sol` → scoreboard) — DONE
 
 - **date:** 2026-11-14

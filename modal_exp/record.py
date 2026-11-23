@@ -189,11 +189,15 @@ def apply_solver_metrics(
 
 
 def apply_filo2_results(results: list[dict]) -> int:
-    return apply_solver_metrics(results, prefix="filo2", notes=NOTES_FILO2)
+    return apply_solver_metrics(
+        results, prefix="filo2", notes=NOTES_FILO2, notes_tag="filo2@"
+    )
 
 
 def apply_filo2x_results(results: list[dict]) -> int:
-    return apply_solver_metrics(results, prefix="filo2x", notes=NOTES_FILO2X)
+    return apply_solver_metrics(
+        results, prefix="filo2x", notes=NOTES_FILO2X, notes_tag="filo2x@"
+    )
 
 
 def apply_ours_results(results: list[dict]) -> int:
