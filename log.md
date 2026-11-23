@@ -48,7 +48,8 @@ Newest first. Add a block per batch.
 - **scoreboard:** 20/20 `filo2_*` + `filo2x_*` filled
 - **quick ours vs FILO2x (indicative):** gap≤ **3/20** · time≤ **16/20** · both-win **0/20** (we are much faster on most, but FILO2x gaps are much tighter except Sardegna/Puglia/Sicilia)
 - **notes paste:** see R012 stamps on those rows
-- **next:** paste `scoreboard.tsv` · draft reply to Rupesh
+- **compare (ours vs FILO2x, 20 I):** gap≤ **3/20** · time≤ **16/20** · both **0/20** · mean gap 1.21% vs 0.70% · mean time 70s vs 77s (paper/derived; not same-box)
+- **sheet:** scoreboard.tsv pasted (R012 FILO2/FILO2x cols live)
 
 ### Tooling — record_sols.py (`.sol` → scoreboard) — DONE
 
