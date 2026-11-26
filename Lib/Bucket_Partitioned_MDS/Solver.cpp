@@ -466,25 +466,21 @@ namespace Bucket_Partitioned_MDS
         const CVRP& cvrp,
         std::vector<node_t>& cities) const
     {
-        // Limited 3-opt: reorder two interior segments (with optional reverses).
-        // Caps route size so O(n^3)-ish search stays practical.
+        // Cheap span-limited 3-opt. Caps route length + span so ls=2 stays
+        // near ls=1 wall time (full-route O(n·span²)·cost blew Toscana).
         const int n = static_cast<int>(cities.size());
-        if (n < 4)
+        if (n < 4 || n > 48)
         {
             return;
         }
-        constexpr int kMaxN = 64;
-        if (n > kMaxN)
-        {
-            return;
-        }
+        constexpr int kSpan = 12;
+        constexpr int kMaxPasses = 3;
 
         auto cost_of = [&](const std::vector<node_t>& r) {
             return get_route_distance(cvrp, r);
         };
 
         int passes = 0;
-        constexpr int kMaxPasses = 8;
         bool improved = true;
         while (improved && passes < kMaxPasses)
         {
@@ -492,65 +488,33 @@ namespace Bucket_Partitioned_MDS
             ++passes;
             double best_cost = cost_of(cities);
             std::vector<node_t> best = cities;
+            const int nn = static_cast<int>(cities.size());
 
-            for (int i = 1; i < n - 2; ++i)
+            for (int i = 1; i < nn - 2; ++i)
             {
-                for (int j = i + 1; j < n - 1; ++j)
+                const int j_hi = std::min(nn - 1, i + kSpan);
+                for (int j = i + 1; j < j_hi; ++j)
                 {
-                    for (int k = j + 1; k < n; ++k)
+                    const int k_hi = std::min(nn, i + kSpan);
+                    for (int k = j + 1; k < k_hi; ++k)
                     {
-                        // Segments: [0,i) | [i,j) | [j,k) | [k,n)
-                        auto build = [&](bool rev1, bool rev2, bool swap) {
-                            std::vector<node_t> out;
-                            out.reserve(n);
-                            out.insert(
-                                out.end(), cities.begin(), cities.begin() + i);
-                            std::vector<node_t> s1(
-                                cities.begin() + i, cities.begin() + j);
-                            std::vector<node_t> s2(
-                                cities.begin() + j, cities.begin() + k);
-                            if (rev1)
-                            {
-                                std::reverse(s1.begin(), s1.end());
-                            }
-                            if (rev2)
-                            {
-                                std::reverse(s2.begin(), s2.end());
-                            }
-                            if (!swap)
-                            {
-                                out.insert(out.end(), s1.begin(), s1.end());
-                                out.insert(out.end(), s2.begin(), s2.end());
-                            }
-                            else
-                            {
-                                out.insert(out.end(), s2.begin(), s2.end());
-                                out.insert(out.end(), s1.begin(), s1.end());
-                            }
-                            out.insert(
-                                out.end(), cities.begin() + k, cities.end());
-                            return out;
-                        };
-
-                        // Skip pure identity; 2-opt-only reverses are cheap to
-                        // re-check; swap variants are the new 3-opt value.
-                        for (int mask = 0; mask < 8; ++mask)
+                        // Segment swap only (no reverse fan-out).
+                        std::vector<node_t> cand;
+                        cand.reserve(nn);
+                        cand.insert(
+                            cand.end(), cities.begin(), cities.begin() + i);
+                        cand.insert(
+                            cand.end(), cities.begin() + j, cities.begin() + k);
+                        cand.insert(
+                            cand.end(), cities.begin() + i, cities.begin() + j);
+                        cand.insert(
+                            cand.end(), cities.begin() + k, cities.end());
+                        const double c = cost_of(cand);
+                        if (c + 1e-12 < best_cost)
                         {
-                            const bool rev1 = mask & 1;
-                            const bool rev2 = mask & 2;
-                            const bool swap = mask & 4;
-                            if (!swap && !rev1 && !rev2)
-                            {
-                                continue;
-                            }
-                            auto cand = build(rev1, rev2, swap);
-                            const double c = cost_of(cand);
-                            if (c + 1e-12 < best_cost)
-                            {
-                                best_cost = c;
-                                best = std::move(cand);
-                                improved = true;
-                            }
+                            best_cost = c;
+                            best = std::move(cand);
+                            improved = true;
                         }
                     }
                 }
@@ -685,6 +649,284 @@ namespace Bucket_Partitioned_MDS
         }
     }
 
+    void Solver::inter_route_exchange(
+        const CVRP& cvrp,
+        std::vector<std::vector<node_t>>& routes) const
+    {
+        // Swap one customer from r1 with one from r2 (capacity-feasible).
+        if (this->ls < 1 || routes.size() < 2)
+        {
+            return;
+        }
+        const node_t depot = cvrp.depot();
+        const capacity_t Q = cvrp.capacity();
+        constexpr int kMaxRouteLen = 80;
+
+        auto route_load = [&](const std::vector<node_t>& r) {
+            capacity_t load = 0;
+            for (node_t u : r)
+            {
+                load += cvrp[u].demand;
+            }
+            return load;
+        };
+
+        std::vector<capacity_t> loads(routes.size());
+        for (size_t r = 0; r < routes.size(); ++r)
+        {
+            loads[r] = route_load(routes[r]);
+        }
+
+        int passes = 0;
+        constexpr int kMaxPasses = 4;
+        bool improved = true;
+        while (improved && passes < kMaxPasses)
+        {
+            improved = false;
+            ++passes;
+            for (size_t r1 = 0; r1 < routes.size(); ++r1)
+            {
+                if (static_cast<int>(routes[r1].size()) > kMaxRouteLen)
+                {
+                    continue;
+                }
+                for (size_t i = 0; i < routes[r1].size(); ++i)
+                {
+                    const node_t u = routes[r1][i];
+                    const capacity_t du = cvrp[u].demand;
+                    const node_t l1 = (i == 0) ? depot : routes[r1][i - 1];
+                    const node_t rgt1 = (i + 1 == routes[r1].size())
+                        ? depot
+                        : routes[r1][i + 1];
+
+                    for (size_t r2 = r1 + 1; r2 < routes.size(); ++r2)
+                    {
+                        if (static_cast<int>(routes[r2].size()) > kMaxRouteLen)
+                        {
+                            continue;
+                        }
+                        for (size_t j = 0; j < routes[r2].size(); ++j)
+                        {
+                            const node_t v = routes[r2][j];
+                            const capacity_t dv = cvrp[v].demand;
+                            if (loads[r1] - du + dv > Q + 1e-9)
+                            {
+                                continue;
+                            }
+                            if (loads[r2] - dv + du > Q + 1e-9)
+                            {
+                                continue;
+                            }
+                            const node_t l2 =
+                                (j == 0) ? depot : routes[r2][j - 1];
+                            const node_t rgt2 = (j + 1 == routes[r2].size())
+                                ? depot
+                                : routes[r2][j + 1];
+                            const double delta =
+                                cvrp.distance_fast(l1, v)
+                                + cvrp.distance_fast(v, rgt1)
+                                + cvrp.distance_fast(l2, u)
+                                + cvrp.distance_fast(u, rgt2)
+                                - cvrp.distance_fast(l1, u)
+                                - cvrp.distance_fast(u, rgt1)
+                                - cvrp.distance_fast(l2, v)
+                                - cvrp.distance_fast(v, rgt2);
+                            if (delta < -1e-12)
+                            {
+                                routes[r1][i] = v;
+                                routes[r2][j] = u;
+                                loads[r1] = loads[r1] - du + dv;
+                                loads[r2] = loads[r2] - dv + du;
+                                improved = true;
+                                break;
+                            }
+                        }
+                        if (improved)
+                        {
+                            break;
+                        }
+                    }
+                    if (improved)
+                    {
+                        break;
+                    }
+                }
+                if (improved)
+                {
+                    break;
+                }
+            }
+        }
+    }
+
+    void Solver::inter_route_cross(
+        const CVRP& cvrp,
+        std::vector<std::vector<node_t>>& routes) const
+    {
+        // 2-opt*: swap tails. Strided cuts + route-size cap keep this cheap.
+        if (this->ls < 1 || routes.size() < 2)
+        {
+            return;
+        }
+        const node_t depot = cvrp.depot();
+        const capacity_t Q = cvrp.capacity();
+        constexpr int kMaxRouteLen = 64;
+        constexpr int kMaxPasses = 4;
+
+        auto prefix_loads = [&](const std::vector<node_t>& r) {
+            std::vector<capacity_t> pref(r.size() + 1, 0);
+            for (size_t t = 0; t < r.size(); ++t)
+            {
+                pref[t + 1] = pref[t] + cvrp[r[t]].demand;
+            }
+            return pref;
+        };
+
+        auto cut_stride = [](int n) {
+            // ~16 cut samples per route.
+            return std::max(1, (n + 15) / 16);
+        };
+
+        int passes = 0;
+        bool improved = true;
+        while (improved && passes < kMaxPasses)
+        {
+            improved = false;
+            ++passes;
+            for (size_t r1 = 0; r1 < routes.size(); ++r1)
+            {
+                if (routes[r1].empty()
+                    || static_cast<int>(routes[r1].size()) > kMaxRouteLen)
+                {
+                    continue;
+                }
+                auto pref1 = prefix_loads(routes[r1]);
+                const capacity_t tot1 = pref1.back();
+                const int n1 = static_cast<int>(routes[r1].size());
+                const int s1 = cut_stride(n1);
+                for (size_t r2 = r1 + 1; r2 < routes.size(); ++r2)
+                {
+                    if (routes[r2].empty()
+                        || static_cast<int>(routes[r2].size()) > kMaxRouteLen)
+                    {
+                        continue;
+                    }
+                    auto pref2 = prefix_loads(routes[r2]);
+                    const capacity_t tot2 = pref2.back();
+                    const int n2 = static_cast<int>(routes[r2].size());
+                    const int s2 = cut_stride(n2);
+
+                    for (int i = -1; i < n1; i += (i < 0 ? 1 : s1))
+                    {
+                        const capacity_t head1 =
+                            (i < 0) ? 0 : pref1[static_cast<size_t>(i) + 1];
+                        const capacity_t tail1 = tot1 - head1;
+                        const node_t a = (i < 0)
+                            ? depot
+                            : routes[r1][static_cast<size_t>(i)];
+                        const node_t b =
+                            (i + 1 >= n1)
+                            ? depot
+                            : routes[r1][static_cast<size_t>(i + 1)];
+
+                        for (int j = -1; j < n2; j += (j < 0 ? 1 : s2))
+                        {
+                            const capacity_t head2 =
+                                (j < 0) ? 0 : pref2[static_cast<size_t>(j) + 1];
+                            const capacity_t tail2 = tot2 - head2;
+                            if (tail1 == 0 && tail2 == 0)
+                            {
+                                continue;
+                            }
+                            if (head1 + tail2 > Q + 1e-9
+                                || head2 + tail1 > Q + 1e-9)
+                            {
+                                continue;
+                            }
+                            const node_t c = (j < 0)
+                                ? depot
+                                : routes[r2][static_cast<size_t>(j)];
+                            const node_t d =
+                                (j + 1 >= n2)
+                                ? depot
+                                : routes[r2][static_cast<size_t>(j + 1)];
+
+                            const double delta =
+                                cvrp.distance_fast(a, d)
+                                + cvrp.distance_fast(c, b)
+                                - cvrp.distance_fast(a, b)
+                                - cvrp.distance_fast(c, d);
+                            if (delta >= -1e-12)
+                            {
+                                continue;
+                            }
+
+                            std::vector<node_t> new1;
+                            std::vector<node_t> new2;
+                            new1.reserve(routes[r1].size() + routes[r2].size());
+                            new2.reserve(routes[r1].size() + routes[r2].size());
+                            if (i >= 0)
+                            {
+                                new1.insert(
+                                    new1.end(),
+                                    routes[r1].begin(),
+                                    routes[r1].begin() + i + 1);
+                            }
+                            if (j + 1 < n2)
+                            {
+                                new1.insert(
+                                    new1.end(),
+                                    routes[r2].begin() + j + 1,
+                                    routes[r2].end());
+                            }
+                            if (j >= 0)
+                            {
+                                new2.insert(
+                                    new2.end(),
+                                    routes[r2].begin(),
+                                    routes[r2].begin() + j + 1);
+                            }
+                            if (i + 1 < n1)
+                            {
+                                new2.insert(
+                                    new2.end(),
+                                    routes[r1].begin() + i + 1,
+                                    routes[r1].end());
+                            }
+                            routes[r1] = std::move(new1);
+                            routes[r2] = std::move(new2);
+                            if (routes[r1].empty() || routes[r2].empty())
+                            {
+                                routes.erase(
+                                    std::remove_if(
+                                        routes.begin(),
+                                        routes.end(),
+                                        [](const std::vector<node_t>& r) {
+                                            return r.empty();
+                                        }),
+                                    routes.end());
+                            }
+                            improved = true;
+                            break;
+                        }
+                        if (improved)
+                        {
+                            break;
+                        }
+                    }
+                    if (improved)
+                    {
+                        break;
+                    }
+                }
+                if (improved)
+                {
+                    break;
+                }
+            }
+        }
+    }
+
     std::vector<std::vector<node_t>> Solver::process_2OPT(
         const CVRP&                             cvrp, 
         const std::vector<std::vector<node_t>>& routes) const
@@ -738,6 +980,8 @@ namespace Bucket_Partitioned_MDS
         if (this->ls >= 1)
         {
             inter_route_relocate(cvrp, routes);
+            inter_route_exchange(cvrp, routes);
+            inter_route_cross(cvrp, routes);
             // Re-polish routes that may have changed.
             for (auto& r : routes)
             {

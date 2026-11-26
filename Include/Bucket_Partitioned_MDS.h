@@ -77,7 +77,7 @@ namespace Bucket_Partitioned_MDS
         const double alpha;
         const int rho;
         const int topk;
-        // 0 = 2-opt only; 1 = + Or-opt/relocate; 2 = + limited 3-opt
+        // 0 = 2-opt only; 1 = + Or-opt/relocate/exchange/cross; 2 = + span 3-opt
         const int ls;
 
         void get_bucket(
@@ -124,6 +124,14 @@ namespace Bucket_Partitioned_MDS
             std::vector <node_t>&) const;
 
         void inter_route_relocate(
+            const CVRP&,
+            std::vector <std::vector <node_t>>&) const;
+
+        void inter_route_exchange(
+            const CVRP&,
+            std::vector <std::vector <node_t>>&) const;
+
+        void inter_route_cross(
             const CVRP&,
             std::vector <std::vector <node_t>>&) const;
 

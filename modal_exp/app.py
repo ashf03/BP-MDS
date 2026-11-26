@@ -24,10 +24,13 @@ RUN_ID_CUOPT = "R008"
 RUN_ID_OURS_GPU = "R009"
 RUN_ID_OURS_CUDA = "R010"
 RUN_ID_LS = "R011"
+RUN_ID_GAP = "R013"
 UPSTREAM_SHA = "5b9e24f"
-OURS_SHA = "a7a7533"
+OURS_SHA = "25b7ecb"
 CUOPT_PIN = "26.10.01"  # cuopt-cu12 from pypi.nvidia.com (gpu-ready)
 DEFAULT_TOPK = 2  # R006: 127/127 time wins; K≥3 still loses time on hard rows
+GAP_TOPK = 6  # R013 gap-first polish
+GAP_LS = 2  # Or-opt/relocate + limited 3-opt
 # Dense float32 N×N cost matrix: n=25k ≈ 2.5 GB; H100 80 GB leaves solver headroom.
 CUOPT_MAX_N = 25000
 CUOPT_TIME_LIMIT_S = 30.0
@@ -68,9 +71,77 @@ NOTES_LS = (
     f"hw=Modal-48c-256G timed=Solver::solve ls=2 "
     f"ops=2opt+oropt+relocate+3opt topk={DEFAULT_TOPK}"
 )
+NOTES_GAP = (
+    f"run={RUN_ID_GAP} bpmds@{UPSTREAM_SHA} ours@{OURS_SHA} cuopt@na "
+    f"hw=Modal-48c-256G timed=Solver::solve gap-first "
+    f"tier=A topk={GAP_TOPK} ls={GAP_LS}"
+)
+RUN_ID_GAP_B = "R013b"
+NOTES_GAP_B = (
+    f"run={RUN_ID_GAP_B} bpmds@{UPSTREAM_SHA} ours@{OURS_SHA} cuopt@na "
+    f"hw=Modal-48c-256G timed=Solver::solve dual-constraint "
+    f"gap↓+time≤bpmds+gap≤bpmds"
+)
+RUN_ID_GAP_C = "R013c"
+NOTES_GAP_C = (
+    f"run={RUN_ID_GAP_C} bpmds@{UPSTREAM_SHA} ours@{OURS_SHA} cuopt@na "
+    f"hw=Modal-48c-256G timed=Solver::solve dual-constraint "
+    f"slack-spend gap↓+time≤bpmds+gap≤bpmds"
+)
+RUN_ID_LSX = "R014"
+NOTES_LSX = (
+    f"run={RUN_ID_LSX} bpmds@{UPSTREAM_SHA} ours@{OURS_SHA} cuopt@na "
+    f"hw=Modal-48c-256G timed=Solver::solve dual-constraint "
+    f"lsx=exchange+cross+span3opt gap↓+time≤bpmds+gap≤bpmds"
+)
+# R015: quality-first — soft time budget vs BP-MDS; hunt FILO2x gap / sweet spot.
+RUN_ID_QUAL = "R015"
+QUALITY_TIME_MULT = 1.5  # allow up to 1.5× bpmds_time while searching gap
+NOTES_QUAL = (
+    f"run={RUN_ID_QUAL} bpmds@{UPSTREAM_SHA} ours@{OURS_SHA} cuopt@na "
+    f"hw=Modal-48c-256G timed=Solver::solve quality-first "
+    f"soft_time≤{QUALITY_TIME_MULT}x_bpmds hunt=FILO2x-gap"
+)
+# Near + mid FILO2x losers for quality-first sweet-spot search.
+TIER_QUAL = (
+    "Toscana",
+    "Basilicata",
+    "Lombardia",
+    "Friuli-Venezia-Giulia",
+    "Campania",
+    "Abruzzo",
+)
 # keep old name for ours path compatibility
 RUN_ID = RUN_ID_OURS
 NOTES = NOTES_OURS
+
+# R013a: never-Phase-B I instances (largest unused α lever).
+TIER_A = (
+    "Valle-D-Aosta",
+    "Umbria",
+    "Trentino-Alto-Adige",
+    "Calabria",
+)
+# R013b: close then mid FILO2x gap losers (cheap knobs).
+TIER_D = ("Toscana", "Basilicata", "Lombardia")
+TIER_C = (
+    "Lazio",
+    "Marche",
+    "Veneto",
+    "Abruzzo",
+    "Campania",
+    "Friuli-Venezia-Giulia",
+)
+# R013c: near-miss + fat time-slack vs BP-MDS (spend headroom).
+TIER_SLACK = (
+    "Toscana",  # closest to FILO2x (~+0.045 pp)
+    "Valle-D-Aosta",
+    "Umbria",
+    "Trentino-Alto-Adige",
+    "Liguria",
+    "Calabria",
+    "Veneto",
+)
 
 # Remaining large+BKS gap losers after R006 (topk=2, ρ=10k).
 PHASE_B_LOSERS = (
@@ -308,7 +379,17 @@ def run_ours_one(
     os.environ["OMP_NUM_THREADS"] = str(int(CPU_CORES))
     binary = _build_ours()
     notes = (
-        NOTES_LS
+        NOTES_QUAL
+        if run_id == RUN_ID_QUAL
+        else NOTES_LSX
+        if run_id == RUN_ID_LSX
+        else NOTES_GAP_C
+        if run_id == RUN_ID_GAP_C
+        else NOTES_GAP_B
+        if run_id == RUN_ID_GAP_B
+        else NOTES_GAP
+        if run_id == RUN_ID_GAP
+        else NOTES_LS
         if run_id == RUN_ID_LS
         else NOTES_PHASE_B
         if run_id == RUN_ID_PHASE_B
@@ -333,7 +414,17 @@ def run_ours_one(
         return row
 
     if sol_tag:
-        out_dir = Path("/data/Output/ours/phaseb")
+        out_dir = Path(
+            "/data/Output/ours/gap"
+            if run_id in {
+                RUN_ID_GAP,
+                RUN_ID_GAP_B,
+                RUN_ID_GAP_C,
+                RUN_ID_LSX,
+                RUN_ID_QUAL,
+            }
+            else "/data/Output/ours/phaseb"
+        )
         out_dir.mkdir(parents=True, exist_ok=True)
         sol = out_dir / f"{instance}_{sol_tag}.sol"
     else:
@@ -1217,6 +1308,312 @@ def _phase_b5_jobs(by_name: dict[str, dict]) -> list[tuple]:
     )
 
 
+def _r013a_grids() -> dict[str, dict]:
+    return {
+        "Valle-D-Aosta": {
+            "alphas": (48.0, 50.0, 52.0, 54.0, 56.0),
+            "rhos": (10000, 20000, 40000, 60000),
+        },
+        "Umbria": {
+            "alphas": (9.5, 10.0, 10.5, 11.0, 11.5, 12.0, 12.5),
+            "rhos": (10000, 20000, 40000, 60000),
+        },
+        "Trentino-Alto-Adige": {
+            "alphas": (30.0, 32.0, 33.0, 34.0, 35.0, 36.0, 38.0),
+            "rhos": (10000, 20000, 40000, 60000),
+        },
+        "Calabria": {
+            "alphas": (8.5, 9.0, 9.5, 10.0, 10.5, 11.0, 11.5),
+            "rhos": (10000, 20000, 40000, 60000),
+        },
+    }
+
+
+def _r013a_jobs(
+    by_name: dict[str, dict],
+    *,
+    skip: set[tuple[str, float, int]] | None = None,
+) -> list[tuple]:
+    """Tier A never-Phase-B: α×ρ grid at gap-first topk=6 ls=2."""
+    skip = skip or set()
+    jobs: list[tuple] = []
+    seen: set[tuple[str, float, int]] = set()
+    for inst, g in _r013a_grids().items():
+        r = by_name.get(inst)
+        if not r:
+            continue
+        for a in g["alphas"]:
+            alpha = round(float(a), 4)
+            if alpha <= 0 or alpha > 360:
+                continue
+            for rho in g["rhos"]:
+                key = (inst, alpha, int(rho))
+                if key in seen or key in skip:
+                    continue
+                seen.add(key)
+                tag = f"a{alpha:g}_r{int(rho)}_k{GAP_TOPK}_ls{GAP_LS}"
+                jobs.append(
+                    (
+                        r["instance"],
+                        r["path"],
+                        alpha,
+                        int(rho),
+                        r.get("bks", ""),
+                        RUN_ID_GAP,
+                        tag,
+                        GAP_TOPK,
+                        GAP_LS,
+                    )
+                )
+    return jobs
+
+
+def _r013_done_keys(jsonl: Path) -> set[tuple[str, float, int]]:
+    done: set[tuple[str, float, int]] = set()
+    if not jsonl.is_file():
+        return done
+    for line in jsonl.read_text().splitlines():
+        if not line.strip():
+            continue
+        r = json.loads(line)
+        if not r.get("ok") or r.get("ours_cost") is None:
+            continue
+        done.add((r["instance"], float(r["alpha"]), int(r["rho"])))
+    return done
+
+
+def _load_knobs() -> dict[str, dict]:
+    path = REPO / "modal_exp" / "results" / "R009_knobs.json"
+    return json.loads(path.read_text())
+
+
+def _r013b_jobs(
+    by_name: dict[str, dict],
+    instances: tuple[str, ...],
+    *,
+    topks: tuple[int, ...] = (2, 3, 4),
+    lss: tuple[int, ...] = (1, 2),
+    rho_mults: tuple[float, ...] = (1.0, 1.5, 2.0),
+    run_id: str = RUN_ID_GAP_B,
+) -> list[tuple]:
+    """Dual-constraint grid: live α × ρ multiples × topk × ls."""
+    knobs = _load_knobs()
+    jobs: list[tuple] = []
+    seen: set[tuple[str, float, int, int, int]] = set()
+    for inst in instances:
+        r = by_name.get(inst)
+        k = knobs.get(inst)
+        if not r or not k:
+            continue
+        alpha = round(float(k["alpha"]), 4)
+        base_rho = int(k["rho"])
+        for mult in rho_mults:
+            rho = int(round(base_rho * mult))
+            if rho <= 0:
+                continue
+            for topk in topks:
+                for ls in lss:
+                    key = (inst, alpha, rho, int(topk), int(ls))
+                    if key in seen:
+                        continue
+                    seen.add(key)
+                    tag = f"a{alpha:g}_r{rho}_k{int(topk)}_ls{int(ls)}"
+                    jobs.append(
+                        (
+                            r["instance"],
+                            r["path"],
+                            alpha,
+                            rho,
+                            r.get("bks", ""),
+                            run_id,
+                            tag,
+                            int(topk),
+                            int(ls),
+                        )
+                    )
+    return jobs
+
+
+def _r015_summarize(
+    results: list[dict],
+    by_name: dict[str, dict],
+    targets: list[str],
+    *,
+    time_mult: float = QUALITY_TIME_MULT,
+) -> tuple[dict[str, dict], dict[str, dict], list[dict]]:
+    """Quality-first: best gap under soft time; also best hard dual-win."""
+    best_soft: dict[str, dict] = {}
+    best_dual: dict[str, dict] = {}
+    best_f2x: dict[str, dict] = {}
+    for x in results:
+        if not x.get("ok") or x.get("ours_cost") is None:
+            continue
+        inst = x["instance"]
+        row = by_name.get(inst) or {}
+        try:
+            gap = float(x["ours_gap_pct"])
+            time_s = float(x["ours_time_s"])
+            bpmds_gap = float(row["bpmds_gap_pct"])
+            bpmds_t = float(row["bpmds_time_s"])
+            f2x = float(row["filo2x_gap_pct"]) if row.get("filo2x_gap_pct") else None
+        except (TypeError, ValueError, KeyError):
+            continue
+        soft_cap = bpmds_t * time_mult
+        if time_s <= soft_cap + 1e-9:
+            cur = best_soft.get(inst)
+            if cur is None or float(x["ours_cost"]) < float(cur["ours_cost"]):
+                best_soft[inst] = x
+        if (
+            time_s <= bpmds_t + 1e-9
+            and gap <= bpmds_gap + 1e-9
+        ):
+            # dual-feasible vs BP-MDS (gap vs sheet checked at apply time)
+            cur = best_dual.get(inst)
+            if cur is None or float(x["ours_cost"]) < float(cur["ours_cost"]):
+                best_dual[inst] = x
+        if f2x is not None and gap <= f2x + 1e-9 and time_s <= soft_cap + 1e-9:
+            cur = best_f2x.get(inst)
+            if cur is None or time_s < float(cur["ours_time_s"]):
+                best_f2x[inst] = x
+
+    summary = []
+    for inst in targets:
+        row = by_name.get(inst) or {}
+        sheet_gap = float(row["ours_gap_pct"]) if row.get("ours_gap_pct") else None
+        f2x = float(row["filo2x_gap_pct"]) if row.get("filo2x_gap_pct") else None
+        bpmds_t = float(row["bpmds_time_s"]) if row.get("bpmds_time_s") else None
+        soft = best_soft.get(inst)
+        dual = best_dual.get(inst)
+        f2 = best_f2x.get(inst)
+
+        def pack(x: dict | None) -> dict | None:
+            if not x:
+                return None
+            g = float(x["ours_gap_pct"])
+            t = float(x["ours_time_s"])
+            return {
+                "gap": g,
+                "time_s": t,
+                "alpha": x.get("alpha"),
+                "rho": x.get("rho"),
+                "topk": x.get("topk"),
+                "ls": x.get("ls"),
+                "vs_sheet": (g - sheet_gap) if sheet_gap is not None else None,
+                "vs_filo2x": (g - f2x) if f2x is not None else None,
+                "time_vs_bpmds": (t / bpmds_t) if bpmds_t else None,
+            }
+
+        soft_p = pack(soft)
+        dual_p = pack(dual)
+        # Sweet spot: beats FILO2x and still ≤ bpmds time (and ≤ bpmds gap).
+        sweet = False
+        if f2 and bpmds_t is not None:
+            try:
+                sweet = (
+                    float(f2["ours_time_s"]) <= bpmds_t + 1e-9
+                    and float(f2["ours_gap_pct"])
+                    <= float(row["bpmds_gap_pct"]) + 1e-9
+                )
+            except (TypeError, ValueError, KeyError):
+                sweet = False
+        summary.append(
+            {
+                "instance": inst,
+                "sheet_gap_pct": sheet_gap,
+                "filo2x_gap_pct": f2x,
+                "bpmds_time_s": bpmds_t,
+                "soft_cap_s": (bpmds_t * time_mult) if bpmds_t else None,
+                "best_soft": soft_p,
+                "best_dual": dual_p,
+                "clears_filo2x_soft": pack(f2),
+                "sweet_spot": sweet,
+            }
+        )
+    return best_soft, best_dual, summary
+
+
+def _r013b_summarize(
+    results: list[dict],
+    by_name: dict[str, dict],
+    targets: list[str],
+) -> tuple[dict[str, dict], list[dict]]:
+    """Best dual-constraint candidate per instance (vs live sheet)."""
+    best: dict[str, dict] = {}
+    for x in results:
+        if not x.get("ok") or x.get("ours_cost") is None:
+            continue
+        inst = x["instance"]
+        row = by_name.get(inst) or {}
+        try:
+            gap = float(x["ours_gap_pct"])
+            time_s = float(x["ours_time_s"])
+            sheet_gap = float(row["ours_gap_pct"])
+            bpmds_gap = float(row["bpmds_gap_pct"])
+            bpmds_t = float(row["bpmds_time_s"])
+        except (TypeError, ValueError, KeyError):
+            continue
+        if not (
+            gap < sheet_gap - 1e-9
+            and time_s <= bpmds_t + 1e-9
+            and gap <= bpmds_gap + 1e-9
+        ):
+            continue
+        cur = best.get(inst)
+        if cur is None or float(x["ours_cost"]) < float(cur["ours_cost"]):
+            best[inst] = x
+
+    summary = []
+    for inst in targets:
+        row = by_name.get(inst) or {}
+        b = best.get(inst)
+        sheet_gap = float(row["ours_gap_pct"]) if row.get("ours_gap_pct") else None
+        f2x = float(row["filo2x_gap_pct"]) if row.get("filo2x_gap_pct") else None
+        if not b:
+            # also report best gap among time-ok even if not improved
+            time_ok = []
+            for x in results:
+                if x.get("instance") != inst or not x.get("ok"):
+                    continue
+                try:
+                    if float(x["ours_time_s"]) <= float(row["bpmds_time_s"]) + 1e-9:
+                        time_ok.append(x)
+                except (TypeError, ValueError, KeyError):
+                    continue
+            tip = min(time_ok, key=lambda z: float(z["ours_cost"])) if time_ok else None
+            summary.append(
+                {
+                    "instance": inst,
+                    "ok": False,
+                    "dual_win": False,
+                    "sheet_gap_pct": sheet_gap,
+                    "filo2x_gap_pct": f2x,
+                    "best_time_ok_gap": float(tip["ours_gap_pct"]) if tip else None,
+                    "best_time_ok_time": float(tip["ours_time_s"]) if tip else None,
+                }
+            )
+            continue
+        gap = float(b["ours_gap_pct"])
+        summary.append(
+            {
+                "instance": inst,
+                "ok": True,
+                "dual_win": True,
+                "alpha": b["alpha"],
+                "rho": b["rho"],
+                "topk": b.get("topk"),
+                "ls": b.get("ls"),
+                "ours_gap_pct": gap,
+                "sheet_gap_pct": sheet_gap,
+                "filo2x_gap_pct": f2x,
+                "d_vs_sheet": gap - sheet_gap if sheet_gap is not None else None,
+                "d_vs_filo2x": gap - f2x if f2x is not None else None,
+                "ours_time_s": b.get("ours_time_s"),
+                "gap_le_filo2x": f2x is not None and gap <= f2x + 1e-9,
+            }
+        )
+    return best, summary
+
+
 @app.local_entrypoint()
 def main(
     cmd: str = "list-large",
@@ -1701,6 +2098,360 @@ def main(
             }
         )
         return
+    if cmd in ("r013a", "r013a-resume"):
+        # Gap-first Tier A: never-Phase-B I instances (resume skips done keys).
+        prior = REPO / "modal_exp" / "results" / f"{RUN_ID_GAP}_ours.jsonl"
+        skip = _r013_done_keys(prior) if cmd == "r013a-resume" else set()
+        jobs = _r013a_jobs(by_name, skip=skip)
+        targets = list(TIER_A)
+        print(
+            {
+                "cmd": cmd,
+                "r013a_jobs": len(jobs),
+                "skipped": len(skip),
+                "instances": targets,
+                "topk": GAP_TOPK,
+                "ls": GAP_LS,
+            }
+        )
+        if not jobs:
+            print({"ok": True, "msg": "nothing left to run"})
+            return
+        results = list(run_ours_one.starmap(jobs))
+        ok = sum(1 for x in results if x.get("ok"))
+        # Merge with prior ok rows for a full-grid view.
+        merged: list[dict] = []
+        if prior.is_file():
+            for line in prior.read_text().splitlines():
+                if line.strip():
+                    merged.append(json.loads(line))
+        merged.extend(results)
+        out = REPO / "modal_exp" / "results" / f"{RUN_ID_GAP}_tierA.jsonl"
+        out.parent.mkdir(parents=True, exist_ok=True)
+        with out.open("w") as f:
+            for x in merged:
+                f.write(json.dumps(x, sort_keys=True) + "\n")
+        # Also refresh local mine of volume appends from this wave.
+        wave = REPO / "modal_exp" / "results" / f"{RUN_ID_GAP}_tierA_wave.jsonl"
+        with wave.open("w") as f:
+            for x in results:
+                f.write(json.dumps(x, sort_keys=True) + "\n")
+
+        best: dict[str, dict] = {}
+        for x in merged:
+            if not x.get("ok") or x.get("ours_cost") is None:
+                continue
+            inst = x["instance"]
+            cur = best.get(inst)
+            if cur is None or float(x["ours_cost"]) < float(cur["ours_cost"]):
+                best[inst] = x
+
+        summary = []
+        for inst in targets:
+            row = by_name.get(inst) or {}
+            b = best.get(inst)
+            if not b:
+                summary.append({"instance": inst, "ok": False})
+                continue
+            ours_gap = float(b["ours_gap_pct"]) if b.get("ours_gap_pct") is not None else None
+            sheet_gap = float(row["ours_gap_pct"]) if row.get("ours_gap_pct") else None
+            f2x_gap = float(row["filo2x_gap_pct"]) if row.get("filo2x_gap_pct") else None
+            improved = (
+                ours_gap is not None
+                and sheet_gap is not None
+                and ours_gap < sheet_gap - 1e-9
+            )
+            beat_f2x = (
+                ours_gap is not None
+                and f2x_gap is not None
+                and ours_gap <= f2x_gap + 1e-9
+            )
+            summary.append(
+                {
+                    "instance": inst,
+                    "alpha": b["alpha"],
+                    "rho": b["rho"],
+                    "topk": b.get("topk"),
+                    "ls": b.get("ls"),
+                    "ours_gap_pct": ours_gap,
+                    "sheet_gap_pct": sheet_gap,
+                    "filo2x_gap_pct": f2x_gap,
+                    "d_vs_sheet": None
+                    if ours_gap is None or sheet_gap is None
+                    else ours_gap - sheet_gap,
+                    "d_vs_filo2x": None
+                    if ours_gap is None or f2x_gap is None
+                    else ours_gap - f2x_gap,
+                    "ours_time_s": b.get("ours_time_s"),
+                    "improved_vs_sheet": improved,
+                    "gap_le_filo2x": beat_f2x,
+                }
+            )
+        best_path = REPO / "modal_exp" / "results" / f"{RUN_ID_GAP}_tierA_best.json"
+        best_path.write_text(json.dumps({"best": best, "summary": summary}, indent=2))
+        print(
+            {
+                "ok": ok,
+                "failed": len(results) - ok,
+                "wave_jsonl": str(wave),
+                "local_jsonl": str(out),
+                "best_json": str(best_path),
+                "improved": sum(1 for s in summary if s.get("improved_vs_sheet")),
+                "gap_le_filo2x": sum(1 for s in summary if s.get("gap_le_filo2x")),
+                "summary": summary,
+            }
+        )
+        return
+    if cmd in ("r015", "r015-resume"):
+        # Quality-first soft-time search on near/mid FILO2x losers.
+        targets = list(TIER_QUAL)
+        all_jobs = _r013b_jobs(
+            by_name,
+            tuple(targets),
+            topks=(4, 6, 8, 12),
+            lss=(1, 2),
+            rho_mults=(1.0, 2.0, 3.0, 4.0),
+            run_id=RUN_ID_QUAL,
+        )
+        out = REPO / "modal_exp" / "results" / f"{RUN_ID_QUAL}_qual.jsonl"
+        prior_path = REPO / "modal_exp" / "results" / f"{RUN_ID_QUAL}_ours.jsonl"
+        prior: list[dict] = []
+        for p in (out, prior_path):
+            if not p.is_file():
+                continue
+            for line in p.read_text().splitlines():
+                if line.strip():
+                    prior.append(json.loads(line))
+        # Dedup prior by (inst, alpha, rho, topk, ls), prefer ok.
+        prior_by_key: dict[tuple, dict] = {}
+        for x in prior:
+            if not x.get("ok"):
+                continue
+            try:
+                key = (
+                    x["instance"],
+                    float(x["alpha"]),
+                    int(x["rho"]),
+                    int(x.get("topk") or 0),
+                    int(x.get("ls") or 0),
+                )
+            except (TypeError, ValueError, KeyError):
+                continue
+            prior_by_key[key] = x
+        jobs = []
+        for j in all_jobs:
+            key = (j[0], float(j[2]), int(j[3]), int(j[7]), int(j[8]))
+            if key not in prior_by_key:
+                jobs.append(j)
+        print(
+            {
+                "cmd": cmd,
+                "tier": "qual",
+                "r015_jobs_total": len(all_jobs),
+                "r015_jobs_todo": len(jobs),
+                "r015_prior_ok": len(prior_by_key),
+                "instances": targets,
+                "topks": [4, 6, 8, 12],
+                "ls": [1, 2],
+                "rho_mults": [1.0, 2.0, 3.0, 4.0],
+                "soft_time_mult": QUALITY_TIME_MULT,
+            }
+        )
+        new_results: list[dict] = []
+        if jobs:
+            new_results = list(run_ours_one.starmap(jobs))
+        for x in new_results:
+            if not x.get("ok"):
+                continue
+            try:
+                key = (
+                    x["instance"],
+                    float(x["alpha"]),
+                    int(x["rho"]),
+                    int(x.get("topk") or 0),
+                    int(x.get("ls") or 0),
+                )
+            except (TypeError, ValueError, KeyError):
+                continue
+            prior_by_key[key] = x
+        results = list(prior_by_key.values())
+        ok = sum(1 for x in results if x.get("ok"))
+        out.parent.mkdir(parents=True, exist_ok=True)
+        with out.open("w") as f:
+            for x in results:
+                f.write(json.dumps(x, sort_keys=True) + "\n")
+        best_soft, best_dual, summary = _r015_summarize(
+            results, by_name, targets, time_mult=QUALITY_TIME_MULT
+        )
+        best_path = REPO / "modal_exp" / "results" / f"{RUN_ID_QUAL}_qual_best.json"
+        best_path.write_text(
+            json.dumps(
+                {
+                    "soft_time_mult": QUALITY_TIME_MULT,
+                    "best_soft": best_soft,
+                    "best_dual": best_dual,
+                    "summary": summary,
+                },
+                indent=2,
+            )
+        )
+        # Sheet apply: only hard dual-wins that also improve vs sheet.
+        apply_rows = []
+        for inst, b in best_dual.items():
+            row = by_name.get(inst) or {}
+            try:
+                if float(b["ours_gap_pct"]) < float(row["ours_gap_pct"]) - 1e-9:
+                    apply_rows.append(
+                        {
+                            "instance": inst,
+                            "cost": b["ours_cost"],
+                            "time_s": b["ours_time_s"],
+                            "gap_pct": b["ours_gap_pct"],
+                            "alpha": b["alpha"],
+                            "rho": b["rho"],
+                            "topk": b.get("topk"),
+                            "ls": b.get("ls"),
+                        }
+                    )
+            except (TypeError, ValueError, KeyError):
+                continue
+        apply_path = (
+            REPO / "modal_exp" / "results" / f"{RUN_ID_QUAL}_qual_apply.jsonl"
+        )
+        with apply_path.open("w") as f:
+            for r in apply_rows:
+                f.write(json.dumps(r) + "\n")
+        print(
+            {
+                "ok": ok,
+                "failed": len(new_results) - sum(1 for x in new_results if x.get("ok")),
+                "run_id": RUN_ID_QUAL,
+                "local_jsonl": str(out),
+                "best_json": str(best_path),
+                "apply_jsonl": str(apply_path),
+                "dual_wins_vs_sheet": len(apply_rows),
+                "clears_filo2x_soft": sum(
+                    1 for s in summary if s.get("clears_filo2x_soft")
+                ),
+                "sweet_spots": sum(1 for s in summary if s.get("sweet_spot")),
+                "summary": summary,
+            }
+        )
+        return
+    if cmd in ("r013b", "r013b-c", "r013c", "r014"):
+        if cmd == "r014":
+            # Stronger/cheaper LS — closest FILO2x losers; denser ρ/topk, ls=1 first.
+            targets = list(TIER_D)
+            tier = "D"
+            run_id = RUN_ID_LSX
+            jobs = _r013b_jobs(
+                by_name,
+                tuple(targets),
+                topks=(2, 4, 6),
+                lss=(1, 2),
+                rho_mults=(1.0, 2.0, 3.0),
+                run_id=RUN_ID_LSX,
+            )
+            out_prefix = RUN_ID_LSX
+            print(
+                {
+                    "cmd": cmd,
+                    "tier": tier,
+                    "r014_jobs": len(jobs),
+                    "instances": targets,
+                    "topks": [2, 4, 6],
+                    "ls": [1, 2],
+                    "rho_mults": [1.0, 2.0, 3.0],
+                    "ops": "exchange+cross+cheap-span3opt",
+                }
+            )
+        elif cmd == "r013c":
+            targets = list(TIER_SLACK)
+            tier = "slack"
+            run_id = RUN_ID_GAP_C
+            jobs = _r013b_jobs(
+                by_name,
+                tuple(targets),
+                topks=(4, 6, 8),
+                lss=(1, 2),
+                rho_mults=(1.0, 2.0, 3.0),
+                run_id=RUN_ID_GAP_C,
+            )
+            out_prefix = RUN_ID_GAP_C
+            print(
+                {
+                    "cmd": cmd,
+                    "tier": tier,
+                    "r013c_jobs": len(jobs),
+                    "instances": targets,
+                    "topks": [4, 6, 8],
+                    "ls": [1, 2],
+                    "rho_mults": [1.0, 2.0, 3.0],
+                }
+            )
+        else:
+            targets = list(TIER_C if cmd == "r013b-c" else TIER_D)
+            tier = "C" if cmd == "r013b-c" else "D"
+            run_id = RUN_ID_GAP_B
+            jobs = _r013b_jobs(by_name, tuple(targets))
+            out_prefix = RUN_ID_GAP_B
+            print(
+                {
+                    "cmd": cmd,
+                    "tier": tier,
+                    "r013b_jobs": len(jobs),
+                    "instances": targets,
+                    "topks": [2, 3, 4],
+                    "ls": [1, 2],
+                    "rho_mults": [1.0, 1.5, 2.0],
+                }
+            )
+        results = list(run_ours_one.starmap(jobs))
+        ok = sum(1 for x in results if x.get("ok"))
+        out = REPO / "modal_exp" / "results" / f"{out_prefix}_tier{tier}.jsonl"
+        out.parent.mkdir(parents=True, exist_ok=True)
+        with out.open("w") as f:
+            for x in results:
+                f.write(json.dumps(x, sort_keys=True) + "\n")
+        best, summary = _r013b_summarize(results, by_name, targets)
+        best_path = (
+            REPO / "modal_exp" / "results" / f"{out_prefix}_tier{tier}_best.json"
+        )
+        best_path.write_text(json.dumps({"best": best, "summary": summary}, indent=2))
+        apply_rows = []
+        for inst, b in best.items():
+            apply_rows.append(
+                {
+                    "instance": inst,
+                    "cost": b["ours_cost"],
+                    "time_s": b["ours_time_s"],
+                    "gap_pct": b["ours_gap_pct"],
+                    "alpha": b["alpha"],
+                    "rho": b["rho"],
+                    "topk": b.get("topk"),
+                    "ls": b.get("ls"),
+                }
+            )
+        apply_path = (
+            REPO / "modal_exp" / "results" / f"{out_prefix}_tier{tier}_apply.jsonl"
+        )
+        with apply_path.open("w") as f:
+            for r in apply_rows:
+                f.write(json.dumps(r) + "\n")
+        print(
+            {
+                "ok": ok,
+                "failed": len(results) - ok,
+                "run_id": run_id,
+                "local_jsonl": str(out),
+                "best_json": str(best_path),
+                "apply_jsonl": str(apply_path),
+                "dual_wins": len(best),
+                "gap_le_filo2x": sum(1 for s in summary if s.get("gap_le_filo2x")),
+                "summary": summary,
+            }
+        )
+        return
     if cmd == "bpmds-one":
         if instance not in by_name:
             raise SystemExit(f"{instance} not in large suite (L/XL/XXL/XXXL)")
@@ -1732,5 +2483,6 @@ def main(
         "ours-cuda-one | ours-cuda-bks | ours-ls-bks | "
         "ours-one | ours-large | topk-sweep | "
         "phase-b | phase-b-batch1 | phase-b-batch2 | phase-b2 | phase-b3 | "
-        "phase-b4 | phase-b5 | harvest | bpmds-one | bpmds-large | harvest-bpmds"
+        "phase-b4 | phase-b5 | r013a | r013a-resume | r013b | r013b-c | r013c | r014 | r015 | r015-resume | "
+        "harvest | bpmds-one | bpmds-large | harvest-bpmds"
     )

@@ -36,6 +36,62 @@ run=R00X bpmds@<sha> ours@<sha> cuopt@<tag|na> hw=<spec> timed=<region>
 
 Newest first. Add a block per batch.
 
+### R015 — quality-first soft time (1.5× bpmds) — COMPLETE
+
+- **date:** 2026-11-26
+- **Modal:** `ap-WtT63PQMhABTLPXwavcmjz` (resume) · **192/192** ok
+- **soft cap:** `time ≤ 1.5 × bpmds` · **0** FILO2x clears · **0** sweet spots
+- **hard dual-wins applied (5):** Toscana 0.8083→**0.8060** · Lombardia →**0.9788** · Friuli →**1.0301** · Campania →**1.4691** · Abruzzo →**1.2309**
+- **soft-only (not sheet):** Basilicata best soft 0.828 @1.49× · Campania soft 1.463 @1.48× · Abruzzo soft 1.220 @1.50× — still ≫ FILO2x
+- **closest after:** Toscana still **+0.036** pp vs FILO2x
+- **read:** 1.5× time still only moves ~0.002–0.01 pp — not enough for FILO2x
+- **artifacts:** `R015_qual.jsonl` · `_best.json` · `_apply.jsonl`
+
+### R014 — stronger/cheaper LS (exchange + cross + cheap span-3opt) — COMPLETE
+
+- **date:** 2026-11-26
+- **code:** `inter_route_exchange` · `inter_route_cross` (2-opt*, strided, n≤64) · cheap span-`tsp_3opt` (n≤48, span=12)
+- **lesson (wave1 aborted):** uncapped cross/3-opt → Toscana ls=2 **589–983s**; capped relaunch `ap-dd5iyIk8wIVoSn53AOtj7i`
+- **targets:** Toscana · Basilicata · Lombardia · **54/54** ok
+- **dual-wins (2/2 applied):** Toscana 0.8085→**0.8083** (ρ=30k k=6 ls=2, t=143.7≤152.7) · Lombardia 0.9849→**0.9803** (ρ=30k k=6 ls=2, t=111.5≤143.6)
+- **Basilicata:** no dual-win (tight ~1% slack; best time-ok gap 0.843 > sheet 0.838)
+- **vs FILO2x:** still **0** new gap≤ · Toscana still **+0.038** pp · Lombardia **+0.220**
+- **read:** code LS moves gap ~0.0002–0.005 pp under dual-constraint — same order as CLI knobs; not enough for FILO2x deltas
+- **artifacts:** `R014_tierD.jsonl` · `_best.json` · `_apply.jsonl` · `R014_ours_partial.jsonl`
+
+### R013c — slack-spend (Toscana + fat-slack) — COMPLETE
+
+- **date:** 2026-11-25
+- **Modal:** `ap-4r2p1qR8dp257P5LMD707y` · **126/126** ok (1 preempt restart)
+- **targets:** Toscana · Valle-D-Aosta · Umbria · Trentino · Liguria · Calabria · Veneto
+- **grid:** topk∈{4,6,8} · ls∈{1,2} · ρ×{1,2,3} · dual-constraint
+- **dual-wins (7/7 applied):** Toscana 0.815→**0.808** · Valle 2.130→**2.123** · Umbria 1.707→**1.671** · Trentino 1.991→**1.929** · Liguria 1.395→**1.394** · Calabria 1.349→**1.336** · Veneto 1.354→**1.351**
+- **vs FILO2x:** still **0** new gap≤ (Toscana closest, still **+0.038** pp) · BP-MDS **127/127** · **25/25** held
+- **read:** spending time slack with topk/ls/ρ still moves gap ~0.005–0.06 pp — ceiling under dual-constraint; need **code** for FILO2x-scale cuts
+- **artifacts:** `R013c_tierslack.jsonl` · `_best.json` · `_apply.jsonl`
+- **ours:** `25b7ecb`
+
+### R013b — dual-constraint Tier D + C — COMPLETE
+
+- **date:** 2026-11-25
+- **Tier D:** 54/54 · `ap-VbG3YNYZuMDzYk8Gr0lbvs` · 3/3 dual-wins applied
+- **Tier C:** 108/108 · `ap-qXqddW9l0tMdSnW54VJHz4` · **6/6** dual-wins applied
+- **C gaps (sheet→new):** Lazio 1.390→1.379 · Marche 1.505→1.500 · Veneto 1.369→1.354 · Abruzzo 1.238→1.234 · Campania 1.482→1.470 · Friuli 1.037→1.031
+- **vs FILO2x:** still **0** new gap≤ wins (all Tier C/D still above f2x); BP-MDS time/both held
+- **read:** cheap CLI knobs move gap ~0.005–0.02 pp under the time cap — not enough to catch FILO2x (~0.4–1.0 pp behind on these)
+- **artifacts:** `R013b_tierD_*.jsonl/json` · `R013b_tierC_*.jsonl/json`
+- **next:** paste sheet · decide code-level LS / search if we need larger gap cuts without blowing time
+
+### R013a — Tier A grid + speed restore — COMPLETE
+
+- **date:** 2026-11-25
+- **what:** α×ρ × topk=6 × ls=2 on Valle/Umbria/Trentino/Calabria · **104/104** ok
+- **Modal:** `ap-olFZ7xbe8BTk4YGNUfEOz1` · `ap-lmzvIlUKr4XHovJ9a5mbrG`
+- **lesson:** gap↓ a bit but **0** configs ≤ bpmds time → large time 123/127, both-win 21/25
+- **restore:** reverted 4 rows to R011 time-feasible (`R013_restore_speed.jsonl`) → large **127/127** time · large+BKS **25/25** both again
+- **next:** R013b dual-constraint (gap↓ **and** time≤bpmds); start Tier D close gaps
+- **artifacts:** `R013_tierA.jsonl` · `R013_tierA_best.json` · `R013_restore_speed.jsonl`
+
 ### R012 — FILO2 / FILO2x paper numbers on I instances — COMPLETE
 
 - **date:** 2026-11-23

@@ -1,0 +1,2 @@
+{"instance": "Trentino-Alto-Adige", "cost": 104031111.1989, "time_s": 13.9395, "gap_pct": 1.9281489951797595, "alpha": 34.0, "rho": 20000, "topk": 6, "ls": 2}
+{"instance": "Calabria", "cost": 1990689791.8313, "time_s": 168.6518, "gap_pct": 1.325337416518848, "alpha": 10.0, "rho": 60000, "topk": 6, "ls": 2}

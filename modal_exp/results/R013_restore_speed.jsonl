@@ -1,0 +1,4 @@
+{"instance": "Valle-D-Aosta", "cost": 22141354.1835, "time_s": 0.3364, "alpha": 52.0, "rho": 10000, "topk": 2, "ls": 1}
+{"instance": "Trentino-Alto-Adige", "cost": 104095425.5285, "time_s": 4.3924, "alpha": 34.0, "rho": 10000, "topk": 2, "ls": 2}
+{"instance": "Umbria", "cost": 554820343.1162, "time_s": 2.1798, "alpha": 11.0, "rho": 10000, "topk": 2, "ls": 1}
+{"instance": "Calabria", "cost": 1991147821.2067, "time_s": 12.3716, "alpha": 10.0, "rho": 10000, "topk": 2, "ls": 1}

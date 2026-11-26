@@ -1,0 +1,2 @@
+{"instance": "Valle-D-Aosta", "cost": 22117304.317, "time_s": 20.52, "gap_pct": 2.0193732986818875, "alpha": 50.0, "rho": 60000, "topk": 6, "ls": 2}
+{"instance": "Umbria", "cost": 554498422.1549, "time_s": 68.1457, "gap_pct": 1.6480860900365002, "alpha": 11.0, "rho": 60000, "topk": 6, "ls": 2}

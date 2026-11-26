@@ -1,0 +1,93 @@
+{
+  "best": {
+    "Toscana": {
+      "ok": true,
+      "run_id": "R014",
+      "solver": "ours",
+      "instance": "Toscana",
+      "path": "FILO2/I/Toscana.vrp",
+      "alpha": 14.0,
+      "rho": 30000,
+      "topk": 6,
+      "ls": 2,
+      "bks": "1084417188.00",
+      "ours_cost": 1093182072.7657,
+      "ours_gap_pct": 0.8082576394667125,
+      "ours_time_s": 143.6816,
+      "wall_s": 145.069568059,
+      "mem_mb": 467.0039,
+      "returncode": 0,
+      "output": "/data/Output/ours/gap/Toscana_a14_r30000_k6_ls2.sol",
+      "omp": "48",
+      "notes": "run=R014 bpmds@5b9e24f ours@25b7ecb cuopt@na hw=Modal-48c-256G timed=Solver::solve dual-constraint lsx=exchange+cross+span3opt gap\u2193+time\u2264bpmds+gap\u2264bpmds alpha=14.0 rho=30000 topk=6 ls=2",
+      "stderr_tail": "ss 10/26 buckets (38.5%) elapsed=6.63s last_bucket=8 size=8904\n[bpmds] progress 11/26 buckets (42.3%) elapsed=9.23s last_bucket=24 size=13439\n[bpmds] progress 12/26 buckets (46.2%) elapsed=11.76s last_bucket=18 size=16094\n[bpmds] progress 13/26 buckets (50.0%) elapsed=12.07s last_bucket=23 size=17019\n[bpmds] progress 14/26 buckets (53.8%) elapsed=13.13s last_bucket=17 size=17834\n[bpmds] progress 15/26 buckets (57.7%) elapsed=14.91s last_bucket=21 size=18968\n[bpmds] progress 16/26 buckets (61.5%) elapsed=16.08s last_bucket=15 size=20481\n[bpmds] progress 17/26 buckets (65.4%) elapsed=16.96s last_bucket=19 size=21273\n[bpmds] progress 18/26 buckets (69.2%) elapsed=18.85s last_bucket=16 size=24733\n[bpmds] progress 19/26 buckets (73.1%) elapsed=21.11s last_bucket=22 size=28684\n[bpmds] progress 20/26 buckets (76.9%) elapsed=23.27s last_bucket=9 size=31548\n[bpmds] progress 21/26 buckets (80.8%) elapsed=25.76s last_bucket=20 size=34449\n[bpmds] progress 22/26 buckets (84.6%) elapsed=36.17s last_bucket=14 size=46874\n[bpmds] progress 23/26 buckets (88.5%) elapsed=44.63s last_bucket=10 size=56496\n[bpmds] progress 24/26 buckets (92.3%) elapsed=60.66s last_bucket=13 size=70962\n[bpmds] progress 25/26 buckets (96.2%) elapsed=104.54s last_bucket=11 size=101106\n[bpmds] progress 26/26 buckets (100.0%) elapsed=143.67s last_bucket=12 size=125344\n[bpmds] solve finished in 143.6816s cost=1093182072.7657 routes=9387 mem_delta_mb=467.0039\n[bpmds] verifying...\n[bpmds] writing solution...\n[bpmds] done.\n",
+      "stdout_tail": ""
+    },
+    "Lombardia": {
+      "ok": true,
+      "run_id": "R014",
+      "solver": "ours",
+      "instance": "Lombardia",
+      "path": "FILO2/I/Lombardia.vrp",
+      "alpha": 15.0,
+      "rho": 30000,
+      "topk": 6,
+      "ls": 2,
+      "bks": "1339900081.00",
+      "ours_cost": 1353034959.2958,
+      "ours_gap_pct": 0.9802878947508602,
+      "ours_time_s": 111.5161,
+      "wall_s": 113.77985056500006,
+      "mem_mb": 514.5898,
+      "returncode": 0,
+      "output": "/data/Output/ours/gap/Lombardia_a15_r30000_k6_ls2.sol",
+      "omp": "48",
+      "notes": "run=R014 bpmds@5b9e24f ours@25b7ecb cuopt@na hw=Modal-48c-256G timed=Solver::solve dual-constraint lsx=exchange+cross+span3opt gap\u2193+time\u2264bpmds+gap\u2264bpmds alpha=15.0 rho=30000 topk=6 ls=2",
+      "stderr_tail": "] progress 8/24 buckets (33.3%) elapsed=12.81s last_bucket=11 size=18013\n[bpmds] progress 9/24 buckets (37.5%) elapsed=13.17s last_bucket=17 size=20794\n[bpmds] progress 10/24 buckets (41.7%) elapsed=13.63s last_bucket=21 size=19040\n[bpmds] progress 11/24 buckets (45.8%) elapsed=17.08s last_bucket=19 size=24994\n[bpmds] progress 12/24 buckets (50.0%) elapsed=18.95s last_bucket=10 size=27926\n[bpmds] progress 13/24 buckets (54.2%) elapsed=27.71s last_bucket=7 size=38873\n[bpmds] progress 14/24 buckets (58.3%) elapsed=31.80s last_bucket=6 size=42987\n[bpmds] progress 15/24 buckets (62.5%) elapsed=37.78s last_bucket=5 size=49552\n[bpmds] progress 16/24 buckets (66.7%) elapsed=40.77s last_bucket=4 size=52213\n[bpmds] progress 17/24 buckets (70.8%) elapsed=45.21s last_bucket=3 size=55532\n[bpmds] progress 18/24 buckets (75.0%) elapsed=50.00s last_bucket=1 size=59111\n[bpmds] progress 19/24 buckets (79.2%) elapsed=52.57s last_bucket=23 size=62298\n[bpmds] progress 20/24 buckets (83.3%) elapsed=57.94s last_bucket=9 size=66225\n[bpmds] progress 21/24 buckets (87.5%) elapsed=62.09s last_bucket=8 size=70106\n[bpmds] progress 22/24 buckets (91.7%) elapsed=68.02s last_bucket=2 size=73543\n[bpmds] progress 23/24 buckets (95.8%) elapsed=82.21s last_bucket=22 size=82926\n[bpmds] progress 24/24 buckets (100.0%) elapsed=111.49s last_bucket=0 size=103423\n[bpmds] solve finished in 111.5161s cost=1353034959.2958 routes=12729 mem_delta_mb=514.5898\n[bpmds] verifying...\n[bpmds] writing solution...\n[bpmds] done.\n",
+      "stdout_tail": ""
+    }
+  },
+  "summary": [
+    {
+      "instance": "Toscana",
+      "ok": true,
+      "dual_win": true,
+      "alpha": 14.0,
+      "rho": 30000,
+      "topk": 6,
+      "ls": 2,
+      "ours_gap_pct": 0.8082576394667125,
+      "sheet_gap_pct": 0.808465,
+      "filo2x_gap_pct": 0.77,
+      "d_vs_sheet": -0.00020736053328751503,
+      "d_vs_filo2x": 0.038257639466712456,
+      "ours_time_s": 143.6816,
+      "gap_le_filo2x": false
+    },
+    {
+      "instance": "Basilicata",
+      "ok": false,
+      "dual_win": false,
+      "sheet_gap_pct": 0.837619,
+      "filo2x_gap_pct": 0.73,
+      "best_time_ok_gap": 0.8433878409808143,
+      "best_time_ok_time": 5.224
+    },
+    {
+      "instance": "Lombardia",
+      "ok": true,
+      "dual_win": true,
+      "alpha": 15.0,
+      "rho": 30000,
+      "topk": 6,
+      "ls": 2,
+      "ours_gap_pct": 0.9802878947508602,
+      "sheet_gap_pct": 0.984879,
+      "filo2x_gap_pct": 0.76,
+      "d_vs_sheet": -0.004591105249139749,
+      "d_vs_filo2x": 0.2202878947508602,
+      "ours_time_s": 111.5161,
+      "gap_le_filo2x": false
+    }
+  ]
+}

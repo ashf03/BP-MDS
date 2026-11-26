@@ -15,7 +15,7 @@ std::string Command_Line_Args::get_usage()
           << "  --alpha   : Angle to partition the 2-D plane\n"
           << "  --rho     : Number of different DFS orderings for exploitation\n"
           << "  --topk    : DFS candidates to polish with 2-opt (default 2)\n"
-          << "  --ls      : Local search level: 0=2-opt, 1=+Or-opt/relocate, 2=+3-opt (default 0)\n"
+          << "  --ls      : Local search: 0=2-opt, 1=+Or-opt/relocate/exchange/cross, 2=+span-3-opt (default 0)\n"
           << "  --input   : Input file path\n"
           << " --output   : Output file path\n\n"
 

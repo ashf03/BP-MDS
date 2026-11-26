@@ -1,0 +1,7 @@
+{"instance": "Toscana", "cost": 1093184320.7911, "time_s": 140.9574, "gap_pct": 0.8084649421012335, "alpha": 14.0, "rho": 30000, "topk": 6, "ls": 2}
+{"instance": "Valle-D-Aosta", "cost": 22139806.9962, "time_s": 0.9997, "gap_pct": 2.123170271252386, "alpha": 52.0, "rho": 10000, "topk": 8, "ls": 1}
+{"instance": "Umbria", "cost": 554625184.9379, "time_s": 6.6884, "gap_pct": 1.6713236571143673, "alpha": 11.0, "rho": 30000, "topk": 4, "ls": 1}
+{"instance": "Trentino-Alto-Adige", "cost": 104031746.0656, "time_s": 10.9621, "gap_pct": 1.9287710282124098, "alpha": 34.0, "rho": 20000, "topk": 4, "ls": 2}
+{"instance": "Liguria", "cost": 1446278494.6368, "time_s": 24.8748, "gap_pct": 1.3943332112019309, "alpha": 5.5, "rho": 40000, "topk": 8, "ls": 1}
+{"instance": "Calabria", "cost": 1990895647.6282, "time_s": 19.3617, "gap_pct": 1.3358153966469593, "alpha": 10.0, "rho": 30000, "topk": 8, "ls": 1}
+{"instance": "Veneto", "cost": 1064678534.29, "time_s": 173.3824, "gap_pct": 1.3507924897421009, "alpha": 13.0, "rho": 30000, "topk": 8, "ls": 2}

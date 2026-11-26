@@ -1,0 +1,2 @@
+{"instance": "Toscana", "cost": 1093182072.7657, "time_s": 143.6816, "gap_pct": 0.8082576394667125, "alpha": 14.0, "rho": 30000, "topk": 6, "ls": 2}
+{"instance": "Lombardia", "cost": 1353034959.2958, "time_s": 111.5161, "gap_pct": 0.9802878947508602, "alpha": 15.0, "rho": 30000, "topk": 6, "ls": 2}

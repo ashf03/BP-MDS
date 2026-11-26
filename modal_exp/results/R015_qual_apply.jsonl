@@ -1,0 +1,5 @@
+{"instance": "Toscana", "cost": 1093157135.9893, "time_s": 151.6136, "gap_pct": 0.8059580838458651, "alpha": 14.0, "rho": 40000, "topk": 8, "ls": 2}
+{"instance": "Lombardia", "cost": 1353014768.4482, "time_s": 124.373, "gap_pct": 0.9787810027156785, "alpha": 15.0, "rho": 40000, "topk": 8, "ls": 2}
+{"instance": "Campania", "cost": 397616192.8252, "time_s": 77.7474, "gap_pct": 1.4691286331065496, "alpha": 13.0, "rho": 40000, "topk": 8, "ls": 2}
+{"instance": "Friuli-Venezia-Giulia", "cost": 420088841.0996, "time_s": 108.4121, "gap_pct": 1.0301027534943197, "alpha": 14.75, "rho": 150000, "topk": 6, "ls": 2}
+{"instance": "Abruzzo", "cost": 315549415.6631, "time_s": 51.429, "gap_pct": 1.2308967313783805, "alpha": 15.0, "rho": 120000, "topk": 4, "ls": 2}

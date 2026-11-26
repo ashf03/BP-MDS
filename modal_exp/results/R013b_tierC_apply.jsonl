@@ -1,0 +1,6 @@
+{"instance": "Lazio", "cost": 3188746779.9798, "time_s": 61.9448, "gap_pct": 1.3787024021098955, "alpha": 5.5, "rho": 40000, "topk": 4, "ls": 1}
+{"instance": "Marche", "cost": 426790512.1802, "time_s": 73.3912, "gap_pct": 1.4997193214000226, "alpha": 12.0, "rho": 45000, "topk": 4, "ls": 2}
+{"instance": "Veneto", "cost": 1064710769.5842, "time_s": 105.1878, "gap_pct": 1.353861089801268, "alpha": 13.0, "rho": 20000, "topk": 4, "ls": 2}
+{"instance": "Abruzzo", "cost": 315557695.4795, "time_s": 50.593, "gap_pct": 1.2335529658612776, "alpha": 15.0, "rho": 90000, "topk": 4, "ls": 2}
+{"instance": "Campania", "cost": 397620786.7731, "time_s": 70.0493, "gap_pct": 1.4703009794516178, "alpha": 13.0, "rho": 60000, "topk": 4, "ls": 2}
+{"instance": "Friuli-Venezia-Giulia", "cost": 420090911.0011, "time_s": 114.4041, "gap_pct": 1.030600558579277, "alpha": 14.75, "rho": 150000, "topk": 4, "ls": 2}
